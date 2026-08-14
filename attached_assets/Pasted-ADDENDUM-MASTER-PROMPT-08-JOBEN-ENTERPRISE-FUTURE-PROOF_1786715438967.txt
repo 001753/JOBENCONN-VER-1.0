@@ -1,0 +1,866 @@
+ADDENDUM — MASTER PROMPT 08
+JOBEN ENTERPRISE — FUTURE-PROOF UI/UX & DASHBOARD ARCHITECTURE
+10-YEAR DESIGN & PRODUCT EVOLUTION REQUIREMENT
+
+STATUS: WAJIB
+MODE: Real Work / Production Architecture / Completed
+PRIORITY: HIGH
+CREDIT MODE: HEMAT — GAP-ONLY, jangan rebuild
+SCOPE: Melengkapi Prompt 08, bukan mengganti atau memperluas core security engine secara liar.
+
+1. TUJUAN UTAMA
+
+Bangun fondasi UI/UX dan dashboard JOBEN Enterprise agar tidak cepat obsolete.
+
+Desain harus mampu berkembang mengikuti:
+
+pertambahan AWS accounts
+pertambahan provider/cloud
+pertambahan control/framework
+pertambahan findings
+evidence dalam jumlah besar
+remediation workflow
+multi-tenant enterprise
+auditor
+governance
+AI-assisted security
+real-time events
+API/integrations
+mobile/responsive usage
+future providers selain AWS
+future compliance frameworks
+perubahan visual/product trend
+
+Jangan membangun UI yang terikat secara keras pada AWS atau struktur database saat ini.
+
+Dashboard harus menjadi product surface, bukan sekadar halaman untuk menampilkan tabel database.
+
+2. PRINSIP ARSITEKTUR UI
+
+Gunakan prinsip:
+
+Stable foundation, evolvable interface.
+
+Jangan membuat setiap halaman sebagai implementasi terpisah yang nantinya sulit dipelihara.
+
+Buat fondasi reusable untuk:
+
+layout
+navigation
+page header
+filters
+cards
+tables
+charts
+status badges
+severity indicators
+empty states
+loading states
+error states
+pagination
+search
+command/action patterns
+drawer
+modal
+detail panel
+evidence viewer
+finding viewer
+control viewer
+scan status
+activity timeline
+
+Semua komponen harus mempunyai single visual language.
+
+3. DASHBOARD BUKAN STATIC MOCKUP
+
+WAJIB:
+
+Jangan menggunakan angka hardcoded hanya agar dashboard terlihat selesai.
+
+Data yang ditampilkan harus berasal dari API/backend yang tersedia.
+
+Jika suatu data belum tersedia:
+
+tampilkan state yang jujur
+No data yet
+Not evaluated
+Insufficient evidence
+Awaiting scan
+atau state relevan lainnya.
+
+DILARANG:
+
+fake compliance score
+fake AWS scan
+fake findings
+fake evidence
+fake activity
+fake security status
+random generated metrics
+
+Dashboard harus selalu membedakan:
+
+real data vs unavailable data.
+
+4. INFORMATION ARCHITECTURE
+
+Struktur navigasi harus mampu berkembang.
+
+Fondasi awal:
+
+Dashboard
+Organizations
+AWS Accounts
+Scans
+Controls
+Findings
+Evidence Vault
+Remediation
+
+Siapkan architecture agar nantinya dapat berkembang menjadi:
+
+Dashboard
+
+
+Security
+├── Accounts
+├── Assets
+├── Scans
+├── Findings
+├── Controls
+└── Risk
+
+
+Compliance
+├── Frameworks
+├── Control Mapping
+├── Assessments
+└── Reports
+
+
+Evidence
+├── Evidence Vault
+├── Collections
+├── Integrity
+└── Audit Trail
+
+
+Remediation
+├── Open
+├── In Progress
+├── Verification
+└── Resolved
+
+
+Governance
+├── Policies
+├── Users
+├── Roles
+├── Audit Logs
+└── Trust
+
+
+Administration
+├── Organization
+├── Integrations
+├── Settings
+└── API
+
+Tidak harus membangun seluruh modul di atas sekarang.
+
+Yang harus dibangun sekarang adalah navigation architecture yang tidak mengunci masa depan.
+
+5. ONE-SCREEN BUSINESS VIEW
+
+Dashboard utama harus mengikuti prinsip:
+
+Dalam beberapa detik user memahami kondisi security organization.
+
+Prioritas informasi:
+
+LEVEL 1 — WHAT IS HAPPENING?
+Security posture
+Compliance score
+Critical/High risks
+Scan status
+Evidence health
+LEVEL 2 — WHY?
+
+User dapat melihat penyebab perubahan:
+
+failed controls
+findings
+stale evidence
+failed scans
+insufficient evidence
+LEVEL 3 — WHAT SHOULD I DO?
+
+User dapat langsung menuju:
+
+investigate
+view evidence
+start scan
+remediate
+rescan
+verify
+
+Gunakan prinsip:
+
+WHY → WHAT → DO
+
+Jangan membuat user harus membuka 5 halaman hanya untuk memahami satu masalah.
+
+6. PROGRESSIVE DISCLOSURE
+
+Jangan memenuhi dashboard dengan semua informasi sekaligus.
+
+Gunakan:
+
+Summary
+   ↓
+Details
+   ↓
+Evidence
+   ↓
+Raw technical data
+
+Contoh:
+
+18 Failed Controls
+       ↓
+AWS IAM Root MFA
+       ↓
+Why did it fail?
+       ↓
+Evidence
+       ↓
+AWS resource/API observation
+       ↓
+Raw evidence
+
+User enterprise mendapatkan detail mendalam tanpa membuat dashboard utama menjadi berantakan.
+
+7. UNIVERSAL SEARCH
+
+Siapkan architecture untuk global search.
+
+Search nantinya dapat menemukan:
+
+AWS account
+resource
+scan
+control
+finding
+evidence
+framework
+user
+organization
+
+Search harus memiliki architecture yang memungkinkan pencarian lintas entity tanpa membuat setiap halaman mempunyai search engine sendiri.
+
+Siapkan juga:
+
+Command Palette
+
+Contoh:
+
+Search
+Run scan
+View critical findings
+Open Evidence Vault
+View failed controls
+Switch organization
+Switch AWS account
+
+Jangan membuat AI chatbot sebagai gimmick.
+
+Jika nantinya ada AI, AI harus berada di atas structured system dan evidence yang nyata.
+
+8. RESPONSIVE BY DESIGN
+
+UI harus responsive sejak awal.
+
+Target:
+
+Desktop
+enterprise primary experience
+wide tables
+charts
+multi-column dashboard
+Tablet
+adaptive cards
+collapsible navigation
+horizontal data handling
+Mobile
+
+Mobile bukan sekadar desktop yang diperkecil.
+
+Prioritaskan:
+
+Security score
+Critical risks
+Scan status
+Important findings
+Quick actions
+Alerts
+
+Table besar harus mempunyai mobile representation yang layak.
+
+Tidak boleh terjadi:
+
+horizontal overflow yang merusak layout
+text terpotong tanpa akses detail
+button terlalu kecil
+modal keluar layar
+navigation unusable
+9. REAL-TIME READY
+
+Jangan mengunci UI pada model:
+
+page load → fetch → selesai
+
+Architecture harus memungkinkan nantinya:
+
+scan started
+scan progress
+scan completed
+finding created
+finding resolved
+evidence committed
+evidence integrity verified
+
+dapat diperbarui tanpa full-page reload.
+
+Untuk sekarang:
+
+Jangan membangun infrastructure realtime besar jika belum diperlukan.
+
+Tetapi component/state architecture harus siap menerima event/update.
+
+10. DESIGN SYSTEM
+
+Buat design token yang konsisten untuk:
+
+Semantic colors
+success
+warning
+danger
+info
+neutral
+critical
+high
+medium
+low
+
+Jangan mengikat status hanya pada warna.
+
+Contoh:
+
+● CRITICAL
+● HIGH
+● MEDIUM
+● LOW
+
+harus tetap dapat dibedakan oleh:
+
+label
+icon
+shape
+typography
+
+untuk accessibility.
+
+11. ACCESSIBILITY
+
+Targetkan fondasi minimal:
+
+WCAG-aware UI.
+
+Perhatikan:
+
+keyboard navigation
+focus state
+semantic HTML
+aria labels
+contrast
+screen-reader meaningful labels
+status jangan hanya disampaikan melalui warna
+clickable element harus jelas
+modal/drawer dapat ditutup keyboard
+
+Jangan mengorbankan accessibility demi visual.
+
+12. DARK / LIGHT ARCHITECTURE
+
+UI harus mempunyai design token sehingga nantinya dapat mendukung:
+
+Dark
+Light
+System
+
+tanpa menulis ulang seluruh component.
+
+Untuk visual JOBEN, dark enterprise security interface boleh menjadi default jika konsisten dengan Prompt 8, tetapi jangan hardcode seluruh warna ke component.
+
+13. DENSITY MODES
+
+Enterprise user sering mempunyai kebutuhan berbeda.
+
+Siapkan konsep:
+
+Comfortable
+Compact
+
+Terutama untuk:
+
+findings
+controls
+evidence
+audit log
+resource tables
+
+User security engineer biasanya membutuhkan information density lebih tinggi daripada executive.
+
+14. EXECUTIVE VS TECHNICAL VIEW
+
+Jangan mencampur seluruh informasi.
+
+Dashboard harus dapat berkembang menjadi dua perspektif:
+
+Executive
+Security posture
+Compliance
+Risk
+Trend
+Critical issues
+Business impact
+Technical
+Resources
+Controls
+Findings
+Evidence
+AWS API observations
+Scan execution
+Logs
+
+Data source tetap sama. Presentation layer berbeda.
+
+15. DRILL-DOWN CONTRACT
+
+Semua angka penting di dashboard harus dapat dijelaskan.
+
+Contoh:
+
+Compliance 78%
+     ↓
+Why 78%?
+     ↓
+128 controls
+     ↓
+100 PASS
+18 FAIL
+10 IN PROGRESS
+     ↓
+18 failed controls
+     ↓
+Finding
+     ↓
+Evidence
+
+Jangan membuat KPI yang tidak dapat ditelusuri.
+
+Prinsip:
+
+Every important number must have an evidence path.
+
+16. EXPLAIN THIS
+
+Siapkan architecture untuk fitur:
+
+Explain
+
+Contoh:
+
+Compliance Score 78%
+
+User dapat membuka:
+
+Mengapa nilainya 78%?
+
+Kemudian sistem menampilkan:
+
+calculation basis
+controls included
+controls excluded
+failed controls
+insufficient evidence
+scan freshness
+timestamp
+source
+
+Jangan menggunakan AI untuk menghitung angka.
+
+Calculation tetap deterministic.
+
+AI nantinya hanya menjelaskan data yang sudah ada.
+
+17. FRESHNESS HARUS TERLIHAT
+
+Security dashboard tanpa freshness akan menyesatkan.
+
+Setiap data penting harus dapat membawa:
+
+Last scanned
+Last evaluated
+Evidence timestamp
+Data freshness
+Source
+
+Contoh:
+
+Compliance Score
+78%
+
+
+Based on scan:
+AWS Production
+12 minutes ago
+
+Jika data stale:
+
+⚠ Data may be outdated
+Last verified: 3 days ago
+18. AUDITABILITY
+
+Setiap action penting nantinya harus dapat ditelusuri.
+
+Contoh:
+
+Who
+What
+When
+Organization
+Resource
+Previous state
+New state
+Reason
+Evidence
+
+UI harus siap menampilkan audit trail tersebut.
+
+19. MULTI-TENANT FIRST
+
+Jangan membuat dashboard seolah hanya mempunyai satu organization.
+
+Context harus selalu mempunyai kemungkinan:
+
+Organization
+    ↓
+Account
+    ↓
+Region
+    ↓
+Resource
+
+UI harus mencegah accidental cross-tenant data display.
+
+Tenant isolation tetap berasal dari backend authorization; UI bukan security boundary.
+
+20. MULTI-PROVIDER READY
+
+Jangan hardcode:
+
+AWS = entire platform
+
+UI harus menggunakan konsep:
+
+Provider
+Provider Account
+Resource
+Region
+
+Sehingga nanti dapat menerima:
+
+AWS
+GitHub
+Azure
+GCP
+Kubernetes
+SaaS integrations
+
+tanpa redesign total.
+
+Prompt 8 tetap hanya mengimplementasikan AWS yang memang sudah menjadi scope.
+
+21. ERROR / EMPTY / LOADING STATES
+
+Setiap halaman/component penting wajib mempunyai:
+
+Loading
+Empty
+Error
+Unauthorized
+Forbidden
+Stale
+Partial data
+Success
+
+Contoh:
+
+Jangan:
+
+Failed to load.
+
+Lebih baik:
+
+Unable to load findings.
+Your scan data is still available. Retry.
+
+Tetap hindari informasi sensitif pada error.
+
+22. NO PREMATURE OVERENGINEERING
+
+Ini sangat penting untuk hemat kredit.
+
+Jangan:
+
+membangun seluruh dashboard masa depan sekarang
+membangun semua framework
+membangun semua provider
+membangun AI engine
+membangun realtime infrastructure penuh
+membuat design system raksasa
+menambahkan dependency besar tanpa kebutuhan
+membuat mock backend baru
+mengulang module yang sudah selesai
+
+Yang dibangun sekarang:
+
+foundation + components + contracts + current Prompt 8 screens/data.
+
+Future capability cukup dibuat extension point, bukan fake implementation.
+
+23. PERFORMANCE 10-YEAR THINKING
+
+Dashboard harus tetap usable ketika data berkembang dari:
+
+10 findings
+→ 10.000
+→ 1.000.000+
+
+Jangan fetch semua data untuk halaman dashboard.
+
+Gunakan:
+
+server-side filtering
+pagination/cursor
+bounded queries
+aggregation endpoint
+lazy loading
+virtualized large lists jika diperlukan
+caching yang tepat
+request cancellation
+debounced search
+
+Tetapi jangan menambahkan optimasi kompleks tanpa kebutuhan nyata.
+
+24. URL / STATE DEEP LINKING
+
+User harus nantinya dapat membagikan/menyimpan state seperti:
+
+/findings?severity=critical&status=open
+
+
+/controls/aws-iam-root-mfa
+
+
+/evidence/{id}
+
+
+/scans/{id}
+
+
+/accounts/{id}
+
+Sehingga browser refresh/back/forward tidak menghancurkan context.
+
+Ini sangat penting untuk enterprise workflow.
+
+25. API/UI PARITY
+
+UI tidak boleh membuat endpoint sendiri yang bertentangan dengan backend contract.
+
+Gunakan:
+
+Backend contract
+      ↓
+API
+      ↓
+UI data layer
+      ↓
+Components
+
+Bukan:
+
+Component
+ ↓
+direct database assumption
+
+UI harus menjadi consumer dari API yang terdefinisi.
+
+26. FUTURE AI LAYER
+
+Siapkan tempat untuk AI tanpa menjadikan AI sebagai dependency core.
+
+Architecture masa depan:
+
+JOBEN Data
+   ↓
+Controls
+   ↓
+Findings
+   ↓
+Evidence
+   ↓
+AI Context Layer
+   ↓
+AI Explanation / Copilot
+
+AI tidak boleh menjadi source of truth.
+
+Source of truth tetap:
+
+database + control engine + evidence + audit.
+
+27. VISUAL DIRECTION
+
+Target visual:
+
+Premium Enterprise Security Platform
+
+Bukan:
+
+template admin biasa
+dashboard bootstrap generik
+crypto dashboard
+AI toy
+terlalu banyak gradient
+terlalu banyak animation
+
+Karakter:
+
+Professional
+Calm
+Dense but readable
+Trustworthy
+Technical
+Premium
+Fast
+Minimal
+Evidence-oriented
+
+Animasi hanya digunakan ketika membantu memahami state.
+
+28. DESIGN UNTUK 10 TAHUN
+
+Gunakan prinsip:
+
+Do not design for today's feature count. Design for tomorrow's information architecture.
+
+Namun:
+
+Do not build tomorrow's features today.
+
+Fondasi harus tahan lama, implementasi tetap scope-controlled.
+
+29. ACCEPTANCE CRITERIA ADDENDUM
+
+Prompt 8 + Addendum dianggap selesai hanya jika:
+
+Architecture
+ UI architecture extensible
+ component reuse jelas
+ design tokens tersedia
+ navigation extensible
+ multi-tenant context aman
+ provider-neutral naming
+ API/UI boundary jelas
+UX
+ dashboard memahami security posture dengan cepat
+ WHY → WHAT → DO jelas
+ progressive disclosure
+ drill-down tersedia
+ loading/error/empty states
+ responsive
+ accessibility foundation
+ dark/light architecture
+Data integrity
+ tidak ada fake metrics
+ dashboard menggunakan data backend nyata
+ freshness terlihat
+ KPI dapat ditelusuri
+ evidence path tersedia bila datanya tersedia
+Future readiness
+ multi-provider ready
+ multi-framework ready
+ realtime-ready
+ AI-ready
+ large-data ready
+ deep-link ready
+ executive/technical presentation ready
+Engineering
+ TypeScript clean
+ build berhasil
+ test existing tidak rusak
+ tidak ada regression
+ tidak ada dependency unnecessary
+ tidak rebuild module yang sudah completed
+ dokumentasi architecture diperbarui
+30. CREDIT-SAVING EXECUTION RULE
+
+WAJIB mengikuti aturan ini:
+
+AUDIT → GAP MATRIX → PATCH → TEST → VERIFY
+
+Jangan:
+
+rebuild dashboard
+rebuild architecture
+replace existing components
+rewrite existing backend
+
+Jika suatu requirement sudah terpenuhi:
+
+LEAVE IT AS-IS.
+
+Jika belum:
+
+PATCH MINIMAL.
+
+Jika belum dapat diverifikasi karena dependency/external credential:
+
+Jangan membuat mock yang mengaku real. Tandai sebagai verification pending.
+
+FINAL COMMAND UNTUK AGENT
+
+Execute Prompt 08 together with this Addendum as one implementation contract.
+
+Do not merely describe the architecture. Inspect the existing repository and implement the required changes.
+
+Reuse all completed work from previous phases.
+
+Do not rebuild completed modules.
+
+Do not invent functionality outside the current phase.
+
+Prioritize production-grade extensibility, real backend data, deterministic behavior, responsive UX, accessibility, security boundaries, and long-term maintainability.
+
+Work gap-only.
+
+Keep the implementation lean to minimize credits.
+
+Run typecheck, tests, build, migration checks where applicable, and runtime smoke verification.
+
+Do not claim completion unless the acceptance criteria are actually verified.
+
+REAL WORK. NO MOCK SUCCESS. NO FAKE DATA. NO REBUILD. NO SCOPE DRIFT. COMPLETED.
