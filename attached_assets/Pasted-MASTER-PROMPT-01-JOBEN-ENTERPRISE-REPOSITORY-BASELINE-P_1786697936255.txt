@@ -1,0 +1,834 @@
+MASTER PROMPT 01 — JOBEN ENTERPRISE
+REPOSITORY BASELINE & P0 READINESS
+
+MODE:
+PRECISION-FIRST / CREDIT-EFFICIENT / REAL-WORK / PRODUCTION-GRADE
+
+STATUS:
+GREENFIELD IMPLEMENTATION
+
+IMPORTANT:
+JOBEN BELUM PERNAH DIBANGUN SEBELUMNYA.
+PRD dan roadmap adalah blueprint/source of truth.
+Jangan menganggap JOBEN sebagai existing application.
+Namun tetap lakukan inspection terhadap repository/workspace yang tersedia sebelum membuat perubahan.
+
+============================================================
+0. MISSION
+============================================================
+
+Bangun dan validasi FOUNDATION BASELINE JOBEN sesuai:
+
+1. PRD JOBEN Enterprise
+2. Roadmap JOBEN
+3. Dependency DAG
+4. P0 / WP-01 requirements
+
+Master Prompt 01 HANYA bertanggung jawab terhadap:
+
+REPOSITORY BASELINE
++
+ARCHITECTURE BASELINE
++
+ENVIRONMENT BASELINE
++
+ENGINEERING FOUNDATION
++
+P0 READINESS
+
+JANGAN mengimplementasikan fitur dari phase/work package berikutnya.
+
+JANGAN membangun:
+
+- AWS provider integration
+- GitHub integration
+- scan engine
+- worker/queue production workflow
+- evidence engine
+- compliance controls
+- remediation
+- dashboard customer
+- report engine
+- notification system
+- billing
+- AI Gateway
+- trust portal
+- auditor portal
+- marketplace
+- ISO/GDPR/PCI workflows
+- white-label
+- hackathon presentation layer
+
+Jika ada code/template existing yang diperlukan untuk foundation,
+INSPECT dan REUSE bila benar-benar sesuai.
+Jangan melakukan rewrite tanpa alasan teknis yang terverifikasi.
+
+============================================================
+1. SOURCE OF TRUTH
+============================================================
+
+Gunakan dokumen project yang tersedia sebagai sumber kebenaran:
+
+- JOBEN PRD
+- JOBEN ROADMAP
+- dependency DAG
+- module map
+- architecture requirements
+- security requirements
+- Definition of Ready / Definition of Done
+- capability state model
+
+Jangan mengarang requirement baru.
+
+Jika terdapat konflik antar artefak:
+1. identifikasi konflik;
+2. jangan diam-diam memilih salah satu;
+3. dokumentasikan konflik;
+4. pilih keputusan yang paling konservatif hanya jika diperlukan agar pekerjaan dapat dilanjutkan;
+5. catat keputusan tersebut sebagai RFC/decision record.
+
+Jangan mengganti istilah resmi PRD dengan istilah buatan sendiri.
+
+============================================================
+2. FIRST ACTION — INSPECT, DO NOT BUILD
+============================================================
+
+SEBELUM mengubah file apa pun:
+
+Lakukan inspection menyeluruh terhadap repository/workspace.
+
+Periksa minimal:
+
+- repository structure
+- package manager
+- package.json / equivalent
+- lockfile
+- runtime version
+- framework
+- language
+- existing source directories
+- configuration
+- environment handling
+- database configuration
+- migration system
+- test framework
+- linting
+- formatting
+- build scripts
+- start scripts
+- CI configuration
+- Docker/container configuration jika ada
+- deployment configuration jika ada
+- documentation
+- existing architecture records
+- existing capability records
+- existing security configuration
+- existing secrets handling
+- existing logging
+- existing error handling
+
+Jalankan command yang relevan untuk mengetahui keadaan sebenarnya.
+
+Jangan mengasumsikan repository kosong.
+Jangan mengasumsikan repository sudah benar.
+Jangan mengasumsikan dependency sudah tersedia.
+
+SEMUA KESIMPULAN HARUS BERDASARKAN HASIL INSPECTION.
+
+============================================================
+3. GREENFIELD BASELINE
+============================================================
+
+Karena JOBEN belum dibangun, siapkan foundation yang bersih dan maintainable.
+
+Target foundation:
+
+- deterministic package installation
+- deterministic build
+- deterministic test execution
+- deterministic lint/typecheck jika stack mendukung
+- consistent source structure
+- environment configuration contract
+- safe configuration loading
+- centralized error boundary
+- structured logging baseline
+- health/readiness baseline
+- configuration validation
+- basic application lifecycle
+- architecture documentation
+
+Gunakan stack yang ditentukan PRD.
+
+Jangan mengganti technology stack tanpa alasan yang jelas dan terdokumentasi.
+
+Jika suatu dependency belum diperlukan untuk P0,
+JANGAN memasangnya hanya untuk persiapan future feature.
+
+PRINSIP:
+MINIMUM DEPENDENCY / MAXIMUM FOUNDATION.
+
+============================================================
+4. ARCHITECTURE BASELINE
+============================================================
+
+Buat architecture baseline yang mencerminkan PRD.
+
+Pisahkan secara jelas boundary:
+
+PRESENTATION
+↓
+APPLICATION/API
+↓
+DOMAIN
+↓
+PERSISTENCE
+↓
+INFRASTRUCTURE / PROVIDERS
+
+Jangan mencampurkan business logic ke UI.
+
+Jangan membuat provider-specific logic menjadi domain logic.
+
+Jangan membuat frontend sebagai source of truth.
+
+Tetapkan prinsip:
+
+SERVER = AUTHORITY
+DATABASE = DURABLE STATE
+PROVIDER = EXTERNAL OBSERVATION SOURCE
+UI = PROJECTION OF SERVER STATE
+
+Architecture harus memungkinkan implementasi berikutnya tanpa rewrite besar:
+
+- multi-organization
+- tenant isolation
+- RBAC
+- audit
+- provider adapters
+- scan orchestration
+- evidence
+- deterministic evaluation
+- remediation
+- billing
+- AI Gateway
+
+Tetapi fitur-fitur tersebut BELUM BOLEH diimplementasikan pada prompt ini.
+
+============================================================
+5. DOMAIN BOUNDARY BASELINE
+============================================================
+
+Tetapkan boundary konseptual untuk domain berikut:
+
+IDENTITY
+ORGANIZATION
+AUTHORIZATION
+AUDIT
+PROVIDER
+SCAN
+EVIDENCE
+CONTROL
+FINDING
+REMEDIATION
+REPORT
+NOTIFICATION
+BILLING
+AI
+GOVERNANCE
+
+Pada Master Prompt 01:
+
+JANGAN membangun seluruh domain tersebut.
+
+Hanya buat architecture boundary / placeholder contracts
+jika memang dibutuhkan untuk menjaga struktur repository.
+
+Jangan membuat fake implementation.
+
+Jika sebuah interface belum mempunyai implementation:
+gunakan explicit NOT_IMPLEMENTED state atau architecture contract,
+bukan dummy success.
+
+============================================================
+6. CAPABILITY STATE MODEL
+============================================================
+
+Implementasikan atau dokumentasikan capability state model
+yang digunakan JOBEN.
+
+Minimum state:
+
+PLANNED
+NOT_IMPLEMENTED
+EXPERIMENTAL
+DEMO
+LIVE_VERIFIED
+
+Aturan keras:
+
+Tidak boleh mengklaim capability sebagai LIVE_VERIFIED
+hanya karena:
+
+- route tersedia
+- UI tersedia
+- function exists
+- mock berhasil
+- fixture berhasil
+- seed berhasil
+- API mengembalikan 200
+- AI menghasilkan jawaban
+
+LIVE_VERIFIED hanya boleh diberikan setelah acceptance gate
+yang ditentukan roadmap/PRD benar-benar terpenuhi.
+
+Untuk Master Prompt 01,
+foundation capability boleh berstatus:
+
+IMPLEMENTED / VERIFIED
+
+tetapi fitur bisnis tetap:
+
+PLANNED atau NOT_IMPLEMENTED.
+
+============================================================
+7. ENVIRONMENT CONTRACT
+============================================================
+
+Buat environment contract yang jelas.
+
+Pisahkan:
+
+REQUIRED
+OPTIONAL
+DEVELOPMENT
+TEST
+PRODUCTION
+
+Jangan memasukkan secret ke source code.
+
+Jangan membuat:
+
+- hardcoded password
+- hardcoded API key
+- hardcoded token
+- hardcoded database credential
+- fake production secret
+
+Jika environment variable belum tersedia,
+application harus memberikan error konfigurasi yang jelas,
+bukan diam-diam menggunakan secret palsu.
+
+Sediakan .env.example tanpa secret nyata.
+
+Dokumentasikan:
+
+- variable name
+- purpose
+- required/optional
+- expected format
+- environment scope
+
+============================================================
+8. CONFIGURATION VALIDATION
+============================================================
+
+Buat centralized configuration validation.
+
+Application harus gagal secara jelas jika
+required configuration production tidak tersedia.
+
+Development/test behavior boleh berbeda,
+tetapi perbedaannya harus explicit.
+
+Jangan membuat production fallback ke:
+
+- insecure default
+- random undocumented value
+- fake credential
+- localhost dependency tanpa dokumentasi
+
+Jika SESSION_SECRET / encryption secret / database configuration
+diperlukan oleh foundation, perlakukan sebagai secret.
+
+============================================================
+9. ERROR HANDLING BASELINE
+============================================================
+
+Buat centralized error taxonomy/foundation.
+
+Minimum distinction:
+
+VALIDATION_ERROR
+AUTHENTICATION_ERROR
+AUTHORIZATION_ERROR
+NOT_FOUND
+CONFLICT
+CONFIGURATION_ERROR
+DEPENDENCY_ERROR
+INTERNAL_ERROR
+
+Jangan expose:
+
+- stack trace
+- secret
+- credential
+- internal token
+- sensitive database information
+
+kepada end user pada production response.
+
+Logging internal boleh memiliki detail teknis yang diperlukan,
+tetapi tetap mengikuti redaction policy.
+
+============================================================
+10. LOGGING BASELINE
+============================================================
+
+Implementasikan structured logging baseline.
+
+Log harus memungkinkan debugging production.
+
+Minimum context jika tersedia:
+
+- timestamp
+- severity
+- request/correlation id
+- route/operation
+- environment
+- duration
+- error code
+
+Jangan log:
+
+- password
+- session secret
+- API secret
+- access token
+- refresh token
+- raw credentials
+- sensitive authorization material
+
+Buat redaction utility bila diperlukan.
+
+============================================================
+11. HEALTH / READINESS
+============================================================
+
+Sediakan health/readiness foundation.
+
+Bedakan:
+
+LIVENESS
+dan
+READINESS
+
+Liveness:
+application process hidup.
+
+Readiness:
+application siap menerima traffic berdasarkan dependency
+yang memang diwajibkan oleh environment.
+
+Jangan membuat health endpoint mengatakan "healthy"
+jika sebenarnya dependency wajib gagal.
+
+Namun jangan memaksakan dependency future
+yang belum menjadi requirement P0.
+
+Dokumentasikan behavior-nya.
+
+============================================================
+12. TEST FOUNDATION
+============================================================
+
+Siapkan test foundation yang deterministic.
+
+Minimal:
+
+- test command
+- build command
+- lint/typecheck jika applicable
+- basic application startup test
+- configuration validation test
+- health/readiness test
+- error boundary test
+- secret redaction test jika utility dibuat
+
+Test tidak boleh bergantung pada:
+
+- real production secrets
+- random external API
+- uncontrolled external state
+
+Gunakan deterministic test fixtures hanya untuk TEST.
+
+Fixture/seed TIDAK BOLEH dianggap sebagai live capability.
+
+============================================================
+13. CI FOUNDATION
+============================================================
+
+Jika repository menggunakan GitHub:
+
+Siapkan CI foundation yang sesuai stack.
+
+Minimum pipeline:
+
+INSTALL
+↓
+VALIDATE
+↓
+TYPECHECK/LINT jika applicable
+↓
+TEST
+↓
+BUILD
+
+CI harus fail jika build/test gagal.
+
+Jangan menambahkan pipeline kompleks
+yang belum dibutuhkan P0.
+
+Credit-efficient:
+gunakan pipeline sederhana dan deterministic.
+
+============================================================
+14. DATABASE STRATEGY — P0 ONLY
+============================================================
+
+Master Prompt 01 BELUM membangun seluruh database JOBEN.
+
+Namun architecture harus menetapkan:
+
+- PostgreSQL sebagai durable relational store sesuai PRD
+- migration-first approach
+- transaction boundary
+- repository/data-access boundary
+- environment separation
+
+Jangan membuat seluruh schema M-02/M-03/M-04
+pada prompt ini.
+
+Jangan membuat tabel palsu untuk fitur future
+hanya agar UI dapat tampil.
+
+Database implementation detail akan dikerjakan
+pada Master Prompt 02.
+
+============================================================
+15. SECURITY BASELINE
+============================================================
+
+Buat security baseline yang relevan untuk P0.
+
+Minimum:
+
+- secret handling
+- environment separation
+- secure error responses
+- dependency hygiene
+- input validation boundary
+- logging redaction
+- secure headers jika applicable
+- request size limits jika applicable
+- basic abuse protection boundary
+
+Jangan mengklaim:
+
+"enterprise security complete"
+
+atau
+
+"production secure"
+
+pada tahap ini.
+
+Status harus mencerminkan bahwa security hardening
+akan berlanjut pada Master Prompt 04 dan subsequent gates.
+
+============================================================
+16. DOCUMENTATION
+============================================================
+
+Buat/update documentation minimum:
+
+DOC/
+  ARCHITECTURE-BASELINE.md
+  ENVIRONMENT-CONTRACT.md
+  P0-READINESS.md
+  DECISIONS.md
+  CAPABILITY-REGISTRY.md
+
+Jika repository menggunakan struktur DOC berbeda,
+ikuti struktur existing setelah inspection.
+
+Documentation harus menjelaskan:
+
+1. apa yang benar-benar sudah dibangun;
+2. apa yang belum;
+3. command untuk menjalankan;
+4. command untuk test;
+5. environment requirements;
+6. architecture boundaries;
+7. known limitations;
+8. decisions;
+9. capability state;
+10. next dependency.
+
+Jangan menulis dokumentasi seolah-olah
+fitur future sudah selesai.
+
+============================================================
+17. CAPABILITY REGISTRY
+============================================================
+
+Buat capability registry baseline.
+
+Setiap capability minimum memiliki:
+
+- capability id
+- name
+- phase
+- module
+- state
+- source of truth
+- implementation status
+- verification status
+- limitation
+
+Untuk capability future,
+state harus:
+
+PLANNED
+
+atau
+
+NOT_IMPLEMENTED
+
+Jangan menggunakan:
+
+LIVE_VERIFIED
+
+untuk fitur yang belum dibangun.
+
+============================================================
+18. P0 READINESS CHECK
+============================================================
+
+Sebelum menyatakan Master Prompt 01 selesai,
+verifikasi:
+
+[ ] repository structure jelas
+[ ] package install deterministic
+[ ] application build berhasil
+[ ] test command berhasil
+[ ] lint/typecheck berhasil jika applicable
+[ ] configuration contract tersedia
+[ ] .env.example tersedia
+[ ] secret tidak hardcoded
+[ ] error boundary tersedia
+[ ] logging baseline tersedia
+[ ] sensitive logging direda
+[ ] health endpoint tersedia
+[ ] readiness behavior jelas
+[ ] architecture baseline terdokumentasi
+[ ] capability registry tersedia
+[ ] P0 readiness document tersedia
+[ ] CI baseline tersedia jika applicable
+[ ] tidak ada fake capability
+[ ] tidak ada future feature yang diklaim live
+[ ] tidak ada perubahan di luar scope Master Prompt 01
+
+============================================================
+19. STRICT NON-GOALS
+============================================================
+
+JANGAN:
+
+- membuat dashboard customer
+- membuat landing page final
+- membuat AWS scanner
+- membuat GitHub scanner
+- membuat queue production
+- membuat evidence engine
+- membuat compliance scoring
+- membuat remediation
+- membuat billing
+- membuat AI
+- membuat auditor portal
+- membuat trust page
+- membuat marketplace
+- membuat ISO/GDPR/PCI modules
+- membuat demo data yang dianggap production
+- membuat fake API response
+- membuat fake compliance status
+- membuat placeholder yang mengembalikan PASS
+- membuat frontend state sebagai source of truth
+
+Jika sebuah dependency diperlukan untuk foundation,
+implementasikan HANYA bagian foundation yang diperlukan.
+
+============================================================
+20. CREDIT EFFICIENCY RULE
+============================================================
+
+HEMAT KREDIT ADALAH REQUIREMENT.
+
+Jangan:
+
+- mengulang file inspection yang sudah dilakukan;
+- membaca seluruh repository berkali-kali;
+- menginstall dependency yang tidak diperlukan;
+- membuat file yang tidak diperlukan;
+- membuat abstraction berlebihan;
+- membuat speculative architecture;
+- membangun future module;
+- menjalankan test yang sama berulang kali tanpa perubahan.
+
+Gunakan pendekatan:
+
+INSPECT → PLAN → IMPLEMENT → TEST → VERIFY.
+
+Kerjakan dalam batch kecil yang logis.
+
+Jika acceptance criteria sudah terpenuhi,
+STOP.
+
+Jangan mencari pekerjaan tambahan.
+
+============================================================
+21. CHANGE CONTROL
+============================================================
+
+Semua perubahan harus berada dalam scope P0/WP-01.
+
+Sebelum membuat perubahan besar,
+pastikan perubahan tersebut diperlukan oleh
+acceptance criteria Master Prompt 01.
+
+Jika menemukan masalah yang termasuk Prompt 02+:
+
+JANGAN mengimplementasikannya sekarang.
+
+Catat:
+
+DEFERRED TO MASTER PROMPT 02
+
+atau master prompt yang relevan.
+
+============================================================
+22. DEFINITION OF DONE
+============================================================
+
+MASTER PROMPT 01 dianggap DONE hanya jika:
+
+1. repository dapat dipahami;
+2. architecture baseline tersedia;
+3. application foundation berjalan;
+4. configuration tervalidasi;
+5. build berhasil;
+6. tests berhasil;
+7. CI baseline berhasil jika applicable;
+8. secret handling aman;
+9. logging/error baseline tersedia;
+10. capability registry tersedia;
+11. P0 readiness document tersedia;
+12. tidak ada fake capability;
+13. tidak ada future feature yang diklaim live;
+14. scope tetap terbatas pada Prompt 01.
+
+============================================================
+23. FINAL VERIFICATION
+============================================================
+
+Setelah implementation:
+
+1. jalankan build;
+2. jalankan test;
+3. jalankan lint/typecheck jika applicable;
+4. jalankan application;
+5. verify health;
+6. verify readiness;
+7. verify configuration failure behavior;
+8. verify secret redaction;
+9. inspect git diff;
+10. pastikan hanya file yang relevan berubah;
+11. pastikan tidak ada accidental future implementation;
+12. pastikan documentation sesuai keadaan nyata.
+
+Jika ada failure:
+FIX hanya failure yang berada dalam scope Prompt 01.
+
+Jika failure berasal dari dependency/future scope:
+DOCUMENT + DEFER.
+
+Jangan memperluas scope.
+
+============================================================
+24. FINAL REPORT
+============================================================
+
+Pada akhir pekerjaan berikan laporan ringkas:
+
+A. IMPLEMENTED
+- daftar konkret pekerjaan yang benar-benar selesai.
+
+B. VERIFIED
+- command/test yang berhasil.
+
+C. FILES CHANGED
+- daftar file yang berubah dan alasan.
+
+D. CAPABILITIES
+- state setiap capability yang relevan.
+
+E. DEFERRED
+- pekerjaan yang sengaja tidak dikerjakan
+  karena milik Prompt 02+.
+
+F. RISKS
+- risiko yang masih terbuka.
+
+G. P0 GATE
+- PASS / FAIL
+- dengan bukti.
+
+H. NEXT MASTER PROMPT
+- jelaskan dependency yang siap diteruskan
+  ke Master Prompt 02.
+
+============================================================
+25. STOP CONDITION
+============================================================
+
+SETELAH MASTER PROMPT 01 memenuhi Definition of Done:
+
+STOP.
+
+JANGAN otomatis mengerjakan Master Prompt 02.
+
+JANGAN mengimplementasikan fitur tambahan.
+
+JANGAN melakukan redesign.
+
+JANGAN melakukan speculative improvements.
+
+Tunggu instruksi berikutnya.
+
+============================================================
+FINAL COMMAND
+============================================================
+
+EXECUTE MASTER PROMPT 01 NOW.
+
+INSPECT FIRST.
+BUILD ONLY P0/WP-01.
+USE REAL IMPLEMENTATION.
+NO FAKE CAPABILITY.
+NO FUTURE FEATURE IMPLEMENTATION.
+NO REBUILD.
+NO SCOPE CREEP.
+PRESERVE SOURCE-OF-TRUTH ARCHITECTURE.
+OPTIMIZE FOR CREDIT EFFICIENCY.
+VERIFY EVERYTHING YOU CLAIM.
+STOP WHEN THE GATE PASSES.
