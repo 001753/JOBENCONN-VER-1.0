@@ -178,7 +178,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     return customerAwsAuthorization({ actorUserId: actor.userId, organizationId: organization.organizationId, role: organization.role });
   };
 
-  const securityAuthorization = async (permission: "findings.read" | "findings.run" | "findings.acknowledge" | "findings.resolve" | "scan.read" | "scan.create" | "scan.cancel") => {
+  const securityAuthorization = async (permission: "findings.read" | "findings.run" | "findings.acknowledge" | "findings.resolve" | "scan.read" | "scan.create" | "scan.cancel" | "scan.dead_letter.replay" | "scan.recovery" | "scan.circuit_breaker.recover") => {
     const organizationId = actor.session.activeOrganizationId;
     if (!organizationId) throw new AppError("ORG_NOT_FOUND", "An active organization is required.");
     const organization = await identity.authorizeOrganization(actor, organizationId, permission, correlationId);
@@ -289,12 +289,15 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
         if (Number.isNaN(parsed.getTime())) throw new AppError("VALIDATION_ERROR", `${field} must be an ISO date.`);
         return parsed;
       };
+      const parsedFrom = from ? parseDate(from, "from") : undefined;
+      const parsedTo = to ? parseDate(to, "to") : undefined;
+      const cursor = url.searchParams.get("cursor");
       sendJson(response, 200, await security.listScans(auth, accountId, {
-        page: parsePositive(url.searchParams.get("page"), 1, 1_000_000, "page"),
+        ...(cursor ? { cursor } : { page: parsePositive(url.searchParams.get("page"), 1, 1_000_000, "page") }),
         pageSize: parsePositive(url.searchParams.get("pageSize"), 50, 100, "pageSize"),
         ...(status ? { status } : {}),
-        ...(from ? { from: parseDate(from, "from") } : {}),
-        ...(to ? { to: parseDate(to, "to") } : {}),
+        ...(parsedFrom ? { from: parsedFrom } : {}),
+        ...(parsedTo ? { to: parsedTo } : {}),
       }));
       return;
     }
@@ -311,6 +314,35 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
   if (path === "/security/queue" && method === "GET") {
     const auth = await securityAuthorization("scan.read");
     sendJson(response, 200, { backlog: await security.queueBacklog(auth) });
+    return;
+  }
+
+  if (path === "/security/schedules" && method === "GET") {
+    const auth = await securityAuthorization("scan.read");
+    sendJson(response, 200, { schedules: await security.listSchedules(auth) });
+    return;
+  }
+
+  if (path === "/security/schedules" && method === "POST") {
+    await requireCsrf();
+    const body = await readJson(request);
+    const auth = await securityAuthorization("scan.create");
+    sendJson(response, 201, { schedule: await security.createSchedule(auth, {
+      accountId: requiredString(body.accountId, "accountId"),
+      name: requiredString(body.name, "name"),
+      frequency: requiredString(body.frequency, "frequency"),
+      localTime: requiredString(body.localTime, "localTime"),
+      timezone: requiredString(body.timezone, "timezone"),
+    }, correlationId) });
+    return;
+  }
+
+  const schedulePauseMatch = /^\/security\/schedules\/([^/]+)\/pause$/.exec(path);
+  if (schedulePauseMatch && method === "POST") {
+    await requireCsrf();
+    const body = await readJson(request);
+    const auth = await securityAuthorization("scan.create");
+    sendJson(response, 200, { schedule: await security.pauseSchedule(auth, schedulePauseMatch[1]!, body.paused === true, correlationId) });
     return;
   }
 
@@ -332,6 +364,13 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     return;
   }
 
+  const scanOutcomesMatch = /^\/security\/scans\/([^/]+)\/outcomes$/.exec(path);
+  if (scanOutcomesMatch && method === "GET") {
+    const auth = await securityAuthorization("scan.read");
+    sendJson(response, 200, { outcomes: await security.listScanOutcomes(auth, scanOutcomesMatch[1]!) });
+    return;
+  }
+
   const scanCancelMatch = /^\/security\/scans\/([^/]+)\/cancel$/.exec(path);
   if (scanCancelMatch && method === "POST") {
     const scanId = scanCancelMatch[1];
@@ -339,6 +378,14 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     await requireCsrf();
     const auth = await securityAuthorization("scan.cancel");
     sendJson(response, 202, { scan: await security.cancelScan(auth, scanId, correlationId) });
+    return;
+  }
+
+  const scanReplayMatch = /^\/security\/scans\/([^/]+)\/replay$/.exec(path);
+  if (scanReplayMatch && method === "POST") {
+    await requireCsrf();
+    const auth = await securityAuthorization("scan.dead_letter.replay");
+    sendJson(response, 202, { scan: await security.replayDeadLetter(auth, scanReplayMatch[1]!, correlationId) });
     return;
   }
 

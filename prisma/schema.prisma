@@ -173,6 +173,7 @@ model Organization {
   scanJobs            ScanJob[]
   scanCheckOutcomes   ScanCheckOutcome[]
   scanEvents          ScanEvent[]
+  scanSchedules       ScanSchedule[]
 
   @@index([status])
 }
@@ -324,9 +325,32 @@ model AwsAccount {
   securityFindings SecurityFinding[]
   securityScanRuns SecurityScanRun[]
   scanJobs        ScanJob[]
+  scanSchedules   ScanSchedule[]
 
   @@unique([organizationId, awsAccountId])
   @@index([connectionId, status])
+}
+
+model ScanSchedule {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @db.Uuid
+  accountId      String       @db.Uuid
+  name           String       @db.VarChar(160)
+  frequency      String       @db.VarChar(32)
+  localTime      String       @db.VarChar(5)
+  timezone       String       @db.VarChar(64)
+  paused         Boolean      @default(false)
+  nextRunAt      DateTime?    @db.Timestamptz(3)
+  lastRunAt      DateTime?    @db.Timestamptz(3)
+  lastRunId      String?      @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account        AwsAccount   @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, name])
+  @@index([paused, nextRunAt])
+  @@index([organizationId, accountId, paused])
 }
 
 model AwsRegion {

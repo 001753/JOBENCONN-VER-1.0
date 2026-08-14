@@ -14,7 +14,7 @@ try {
   const db = getPrismaClient();
   const security = new SecurityAnalysisService(db);
   const worker = new ScanWorker(db, {
-    execute: async (_job, scan) => security.executeQueuedRun(scan.id),
+    execute: async (job, scan) => security.executeQueuedRun(scan.id, job.attempt),
   }, `scan-worker-${randomUUID()}`);
   const workerTimer = setInterval(() => {
     void worker.runOnce().catch((error: unknown) => logger.error("scan.worker.loop.failed", {
@@ -22,6 +22,12 @@ try {
     }));
   }, 500);
   workerTimer.unref();
+  const scheduleTimer = setInterval(() => {
+    void security.processDueSchedules().catch((error: unknown) => logger.error("scan.schedule.loop.failed", {
+      errorType: error instanceof Error ? error.name : typeof error,
+    }));
+  }, 60_000);
+  scheduleTimer.unref();
   server.listen(config.port, config.host, () => {
     logger.info("application.started", {
       host: config.host,
@@ -33,6 +39,7 @@ try {
     logger.info("application.shutdown.requested", { signal });
     server.close(() => {
       clearInterval(workerTimer);
+      clearInterval(scheduleTimer);
       void disconnectPrisma().finally(() => process.exit(0));
     });
   };

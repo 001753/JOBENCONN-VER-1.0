@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { AppError } from "./errors.js";
 import { requirePermission, type Permission } from "./authorization.js";
-import { AuditEventRepository, systemContext, type OrganizationContext } from "./persistence.js";
+import { AuditEventRepository, customerContext, systemContext, type OrganizationContext } from "./persistence.js";
 import {
   applicableSecurityRules,
   SECURITY_RULES,
@@ -35,8 +35,9 @@ export interface FindingFilters {
 }
 
 export interface ScanFilters {
-  readonly page: number;
+  readonly page?: number;
   readonly pageSize: number;
+  readonly cursor?: string;
   readonly status?: "QUEUED" | "RUNNING" | "CANCELLING" | "COMPLETED" | "PARTIAL" | "FAILED" | "CANCELLED" | "DEAD_LETTER";
   readonly from?: Date;
   readonly to?: Date;
@@ -192,6 +193,21 @@ function findingIdentity(finding: { ruleId: string; ruleVersion: string; awsAcco
   return [finding.ruleId, finding.ruleVersion, finding.awsAccountId, finding.region, finding.resourceId].join("|");
 }
 
+function encodeScanCursor(createdAt: Date, id: string): string {
+  return Buffer.from(JSON.stringify({ createdAt: createdAt.toISOString(), id }), "utf8").toString("base64url");
+}
+
+function decodeScanCursor(value: string): { createdAt: Date; id: string } {
+  try {
+    const decoded = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as { createdAt?: unknown; id?: unknown };
+    const createdAt = typeof decoded.createdAt === "string" ? new Date(decoded.createdAt) : new Date(Number.NaN);
+    if (typeof decoded.id !== "string" || Number.isNaN(createdAt.getTime())) throw new Error("invalid");
+    return { createdAt, id: decoded.id };
+  } catch {
+    throw new AppError("VALIDATION_ERROR", "cursor is invalid.");
+  }
+}
+
 export class SecurityAnalysisService {
   constructor(
     private readonly db: PrismaClient,
@@ -314,12 +330,54 @@ export class SecurityAnalysisService {
     return toPublicScan(cancelled);
   }
 
+  async replayDeadLetter(auth: SecurityAuthorization, scanId: string, correlationId: string) {
+    requireSecurityPermission(auth, "scan.dead_letter.replay");
+    safeUuid(scanId, "scanId");
+    const replayed = await this.db.$transaction(async (tx) => {
+      const current = await tx.securityScanRun.findFirst({ where: { id: scanId, organizationId: auth.organizationId } });
+      if (!current) throw new AppError("NOT_FOUND", "Security scan not found.");
+      if (current.status !== "DEAD_LETTER") return current;
+      const active = await tx.securityScanRun.findUnique({ where: { activeKey: `${auth.organizationId}:${current.accountId}` } });
+      if (active && active.id !== current.id) throw new AppError("CONFLICT", "Another active scan already exists for this AWS integration.");
+      const updated = await tx.securityScanRun.updateMany({
+        where: { id: scanId, organizationId: auth.organizationId, status: "DEAD_LETTER" },
+        data: {
+          status: "QUEUED",
+          activeKey: `${auth.organizationId}:${current.accountId}`,
+          finishedAt: null,
+          terminalReason: null,
+          lastErrorCategory: null,
+          lastError: null,
+          cancelRequestedAt: null,
+        },
+      });
+      if (updated.count !== 1) return tx.securityScanRun.findUniqueOrThrow({ where: { id: scanId } });
+      await tx.scanJob.updateMany({
+        where: { scanRunId: scanId, organizationId: auth.organizationId, status: "DEAD_LETTER" },
+        data: { status: "QUEUED", availableAt: new Date(), leasedAt: null, leaseExpiresAt: null, workerId: null },
+      });
+      await new AuditEventRepository(tx).append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "SCAN_DEAD_LETTER_REPLAYED",
+        purpose: "operator replay of an exhausted scan job",
+        targetType: "security_scan",
+        targetId: scanId,
+        result: "SUCCESS",
+        reason: "Operator explicitly replayed the dead-lettered scan.",
+        correlationId,
+        metadata: { priorAttemptCount: current.retryCount },
+      });
+      return tx.securityScanRun.findUniqueOrThrow({ where: { id: scanId } });
+    });
+    return toPublicScan(replayed);
+  }
+
   async getScanProgress(auth: SecurityAuthorization, scanId: string) {
     requireSecurityPermission(auth, "scan.read");
     return this.getScan(auth, scanId);
   }
 
-  async executeQueuedRun(scanId: string): Promise<void> {
+  async executeQueuedRun(scanId: string, attempt = 1): Promise<void> {
     const scan = await this.db.securityScanRun.findUnique({ where: { id: scanId } });
     if (!scan) throw new AppError("NOT_FOUND", "Queued security scan not found.");
     const auth: SecurityAuthorization = {
@@ -328,10 +386,10 @@ export class SecurityAnalysisService {
       role: "OWNER",
       context: systemContext(scan.requestedByUserId ?? undefined),
     };
-    await this.runScan(auth, scan.accountId, scan.correlationId, undefined, scan.id);
+    await this.runScan(auth, scan.accountId, scan.correlationId, undefined, scan.id, attempt);
   }
 
-  async runScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey?: string, existingRunId?: string) {
+  async runScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey?: string, existingRunId?: string, executionAttempt = 1) {
     requireSecurityPermission(auth, "findings.run");
     safeUuid(accountId, "accountId");
     const account = await this.db.awsAccount.findFirst({ where: { id: accountId, organizationId: auth.organizationId } });
@@ -460,7 +518,7 @@ export class SecurityAnalysisService {
                   finishedAt: checkFinishedAt,
                   durationMs: Math.max(0, checkFinishedAt.getTime() - checkStartedAt.getTime()),
                   correlationId,
-                  attempt: 1,
+                   attempt: executionAttempt,
                 },
               });
             } catch (outcomeError) {
@@ -485,7 +543,7 @@ export class SecurityAnalysisService {
                   errorClass: "RULE_EXECUTION_ERROR",
                   errorMessage: "Rule execution failed.",
                   correlationId,
-                  attempt: 1,
+                   attempt: executionAttempt,
                 },
               });
             } catch (outcomeError) {
@@ -663,33 +721,50 @@ export class SecurityAnalysisService {
     requireSecurityPermission(auth, "findings.read");
     safeUuid(accountId, "accountId");
     await this.findAccount(auth, accountId);
+    const cursor = filters.cursor ? decodeScanCursor(filters.cursor) : undefined;
     const where: Prisma.SecurityScanRunWhereInput = {
       organizationId: auth.organizationId,
       accountId,
       ...(filters.status ? { status: filters.status } : {}),
       ...(filters.from || filters.to ? { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}),
+      ...(cursor ? { OR: [{ createdAt: { lt: cursor.createdAt } }, { createdAt: cursor.createdAt, id: { lt: cursor.id } }] } : {}),
     };
+    const useCursor = Boolean(filters.cursor);
+    const page = filters.page ?? 1;
+    const take = Math.min(Math.max(filters.pageSize, 1), 100);
     const [runs, total] = await this.db.$transaction([
       this.db.securityScanRun.findMany({
         where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        skip: (filters.page - 1) * filters.pageSize,
-        take: filters.pageSize,
+        ...(!useCursor ? { skip: (page - 1) * take } : {}),
+        take: useCursor ? take + 1 : take,
       }),
-      this.db.securityScanRun.count({ where }),
+      ...(useCursor ? [Promise.resolve(null)] : [this.db.securityScanRun.count({ where })]),
     ]);
-    return { scans: runs.map(toPublicScan), page: filters.page, pageSize: filters.pageSize, total, hasNextPage: filters.page * filters.pageSize < total };
+    const hasNextPage = useCursor ? runs.length > take : page * take < (total ?? 0);
+    const visibleRuns = useCursor && hasNextPage ? runs.slice(0, take) : runs;
+    const last = visibleRuns.at(-1);
+    return {
+      scans: visibleRuns.map(toPublicScan),
+      ...(useCursor ? { nextCursor: hasNextPage && last ? encodeScanCursor(last.createdAt, last.id) : null } : {}),
+      page,
+      pageSize: take,
+      total,
+      hasNextPage,
+    };
   }
 
   async queueBacklog(auth: SecurityAuthorization) {
     requireSecurityPermission(auth, "scan.read");
     const where = { organizationId: auth.organizationId };
-    const [queued, running, failed, deadLetter, oldest] = await Promise.all([
+    const [queued, running, failed, deadLetter, oldest, stuckLease, retrying] = await Promise.all([
       this.db.scanJob.count({ where: { ...where, status: "QUEUED" } }),
       this.db.scanJob.count({ where: { ...where, status: "RUNNING" } }),
       this.db.securityScanRun.count({ where: { ...where, status: "FAILED" } }),
       this.db.scanJob.count({ where: { ...where, status: "DEAD_LETTER" } }),
       this.db.scanJob.findFirst({ where: { ...where, status: "QUEUED" }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+      this.db.scanJob.count({ where: { ...where, status: "RUNNING", leaseExpiresAt: { lt: new Date() } } }),
+      this.db.securityScanRun.aggregate({ where, _sum: { retryCount: true } }),
     ]);
     return {
       queuedCount: queued,
@@ -697,7 +772,78 @@ export class SecurityAnalysisService {
       failedCount: failed,
       deadLetterCount: deadLetter,
       oldestQueuedAgeMs: oldest ? Math.max(0, Date.now() - oldest.createdAt.getTime()) : null,
+      stuckLeaseCount: stuckLease,
+      retryCount: retrying._sum.retryCount ?? 0,
     };
+  }
+
+  async createSchedule(auth: SecurityAuthorization, input: { accountId: string; name: string; frequency: string; localTime: string; timezone: string }, correlationId: string) {
+    requireSecurityPermission(auth, "scan.create");
+    safeUuid(input.accountId, "accountId");
+    if (!/^(DAILY|WEEKLY)$/.test(input.frequency)) throw new AppError("VALIDATION_ERROR", "frequency must be DAILY or WEEKLY.");
+    if (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(input.localTime)) throw new AppError("VALIDATION_ERROR", "localTime must use HH:mm.");
+    try {
+      new Intl.DateTimeFormat("en-US", { timeZone: input.timezone }).format();
+    } catch {
+      throw new AppError("VALIDATION_ERROR", "timezone must be a valid IANA timezone.");
+    }
+    const account = await this.db.awsAccount.findFirst({ where: { id: input.accountId, organizationId: auth.organizationId } });
+    if (!account) throw new AppError("NOT_FOUND", "AWS account not found.");
+    const nextRunAt = this.nextScheduleRun(new Date(), input.frequency, input.localTime, input.timezone);
+    const schedule = await this.db.scanSchedule.create({
+      data: { organizationId: auth.organizationId, accountId: input.accountId, name: input.name.trim(), frequency: input.frequency, localTime: input.localTime, timezone: input.timezone, nextRunAt },
+    });
+    await new AuditEventRepository(this.db).append(auth.context, {
+      actorUserId: auth.actorUserId, action: "SCHEDULE_CREATED", purpose: "create a tenant-scoped scan schedule",
+      targetType: "scan_schedule", targetId: schedule.id, result: "SUCCESS", correlationId,
+      metadata: { accountId: input.accountId, frequency: input.frequency, timezone: input.timezone },
+    });
+    return schedule;
+  }
+
+  async listSchedules(auth: SecurityAuthorization) {
+    requireSecurityPermission(auth, "scan.read");
+    return this.db.scanSchedule.findMany({ where: { organizationId: auth.organizationId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }] });
+  }
+
+  async pauseSchedule(auth: SecurityAuthorization, scheduleId: string, paused: boolean, correlationId: string) {
+    requireSecurityPermission(auth, "scan.create");
+    safeUuid(scheduleId, "scheduleId");
+    const schedule = await this.db.scanSchedule.findFirst({ where: { id: scheduleId, organizationId: auth.organizationId } });
+    if (!schedule) throw new AppError("NOT_FOUND", "Scan schedule not found.");
+    const updated = await this.db.scanSchedule.update({ where: { id: schedule.id }, data: { paused } });
+    await new AuditEventRepository(this.db).append(auth.context, {
+      actorUserId: auth.actorUserId, action: paused ? "SCHEDULE_PAUSED" : "SCHEDULE_CHANGED", purpose: "change scan schedule state",
+      targetType: "scan_schedule", targetId: schedule.id, result: "SUCCESS", correlationId, metadata: { paused },
+    });
+    return updated;
+  }
+
+  async processDueSchedules(now = new Date()): Promise<number> {
+    const schedules = await this.db.scanSchedule.findMany({ where: { paused: false, nextRunAt: { lte: now } }, take: 100, orderBy: { nextRunAt: "asc" } });
+    let processed = 0;
+    for (const schedule of schedules) {
+      const claimed = await this.db.scanSchedule.updateMany({ where: { id: schedule.id, paused: false, nextRunAt: schedule.nextRunAt }, data: { lastRunAt: schedule.nextRunAt, nextRunAt: this.nextScheduleRun(schedule.nextRunAt ?? now, schedule.frequency, schedule.localTime, schedule.timezone) } });
+      if (claimed.count !== 1) continue;
+      try {
+        const auth = customerSecurityAuthorization({ actorUserId: "", organizationId: schedule.organizationId, role: "OWNER", context: customerContext(schedule.organizationId) });
+        const run = await this.enqueueScan(auth, schedule.accountId, `schedule:${schedule.id}:${schedule.nextRunAt?.toISOString() ?? now.toISOString()}`, undefined, "SCHEDULE");
+        await this.db.scanSchedule.update({ where: { id: schedule.id }, data: { lastRunId: run.id } });
+        processed += 1;
+      } catch {
+        // The schedule remains observable and its next occurrence is retained.
+      }
+    }
+    return processed;
+  }
+
+  private nextScheduleRun(after: Date, frequency: string, localTime: string, timezone: string): Date {
+    const [hour, minute] = localTime.split(":").map(Number);
+    const candidate = new Date(after.getTime() + (frequency === "WEEKLY" ? 7 : 1) * 86_400_000);
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour12: false, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(candidate);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const utc = new Date(Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day), hour, minute));
+    return utc > after ? utc : new Date(utc.getTime() + (frequency === "WEEKLY" ? 7 : 1) * 86_400_000);
   }
 
   async getScan(auth: SecurityAuthorization, scanId: string) {
@@ -706,6 +852,23 @@ export class SecurityAnalysisService {
     const scan = await this.db.securityScanRun.findFirst({ where: { id: scanId, organizationId: auth.organizationId } });
     if (!scan) throw new AppError("NOT_FOUND", "Security scan not found.");
     return toPublicScan(scan);
+  }
+
+  async listScanOutcomes(auth: SecurityAuthorization, scanId: string) {
+    requireSecurityPermission(auth, "scan.read");
+    safeUuid(scanId, "scanId");
+    const scan = await this.db.securityScanRun.findFirst({ where: { id: scanId, organizationId: auth.organizationId }, select: { id: true } });
+    if (!scan) throw new AppError("NOT_FOUND", "Security scan not found.");
+    return this.db.scanCheckOutcome.findMany({
+      where: { scanRunId: scanId, organizationId: auth.organizationId },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take: 1_000,
+      select: {
+        id: true, scanRunId: true, checkId: true, checkVersion: true, resourceIdentity: true,
+        status: true, startedAt: true, finishedAt: true, durationMs: true,
+        errorClass: true, errorMessage: true, attempt: true, correlationId: true, createdAt: true,
+      },
+    });
   }
 
   async listFindings(auth: SecurityAuthorization, filters: FindingFilters) {

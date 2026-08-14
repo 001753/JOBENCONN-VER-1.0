@@ -27,6 +27,9 @@ export const PERMISSIONS = [
   "scan.read",
   "scan.create",
   "scan.cancel",
+  "scan.dead_letter.replay",
+  "scan.recovery",
+  "scan.circuit_breaker.recover",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 

@@ -3,7 +3,8 @@ import { AuditEventRepository, systemContext } from "./persistence.js";
 import { classifyRetry, retryDelayMs, TERMINAL_SCAN_STATES } from "./scan-orchestration.js";
 
 const LEASE_MS = 30_000;
-const MAX_ATTEMPTS = 3;
+const MAX_RETRIES = 3;
+const HEARTBEAT_MS = 10_000;
 
 type Job = Prisma.ScanJobGetPayload<object>;
 type Scan = Prisma.SecurityScanRunGetPayload<object>;
@@ -24,6 +25,10 @@ export class ScanWorker {
     const claimed = await this.claim(now);
     if (!claimed) return false;
     const { job, scan } = claimed;
+    const heartbeat = setInterval(() => {
+      void this.heartbeat(job.id, scan.id).catch(() => undefined);
+    }, HEARTBEAT_MS);
+    heartbeat.unref();
     try {
       await this.executor.execute(job, scan);
       await this.db.$transaction(async (tx) => {
@@ -64,6 +69,8 @@ export class ScanWorker {
       });
     } catch (error) {
       await this.handleFailure(job, scan, error);
+    } finally {
+      clearInterval(heartbeat);
     }
     return true;
   }
@@ -82,10 +89,17 @@ export class ScanWorker {
         data: { status: "RUNNING", attempt: { increment: 1 }, leasedAt: now, leaseExpiresAt, workerId: this.workerId },
       });
       if (updated.count !== 1) return null;
-      await tx.securityScanRun.updateMany({
+      const scanUpdated = await tx.securityScanRun.updateMany({
         where: { id: candidate.scanRunId, status: "QUEUED" },
         data: { status: "RUNNING", leaseOwner: this.workerId, leaseAcquiredAt: now, leaseExpiresAt, startedAt: now },
       });
+      if (scanUpdated.count !== 1) {
+        await tx.scanJob.updateMany({
+          where: { id: candidate.id, workerId: this.workerId, status: "RUNNING" },
+          data: { status: "QUEUED", leasedAt: null, leaseExpiresAt: null, workerId: null },
+        });
+        return null;
+      }
       return { job: { ...candidate, status: "RUNNING", attempt: candidate.attempt + 1, leasedAt: now, leaseExpiresAt, workerId: this.workerId }, scan: candidate.scanRun };
     });
   }
@@ -107,6 +121,17 @@ export class ScanWorker {
             where: { id: job.scanRunId, status: "RUNNING", leaseExpiresAt: { lt: now } },
             data: { status: "QUEUED", leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, lastError: "Lease expired; job recovered.", retryCount: { increment: 1 } },
           });
+          await new AuditEventRepository(tx).append(systemContext(), {
+            organizationId: job.organizationId,
+            action: "LEASE_RECOVERED",
+            purpose: "recover a scan job whose worker lease expired",
+            targetType: "scan_job",
+            targetId: job.id,
+            result: "FAILURE",
+            reason: "Worker lease expired before execution completed.",
+            correlationId: job.correlationId,
+            metadata: { scanRunId: job.scanRunId },
+          });
         }
       });
     }
@@ -117,15 +142,27 @@ export class ScanWorker {
     const message = error instanceof Error ? error.message.slice(0, 500) : "Unknown scan execution failure.";
     await this.db.$transaction(async (tx) => {
       const current = await tx.scanJob.findUniqueOrThrow({ where: { id: job.id } });
-      const retry = classification.retryable && current.attempt < MAX_ATTEMPTS;
+      const retry = classification.retryable && current.attempt <= MAX_RETRIES;
       if (retry) {
-        const next = new Date(Date.now() + retryDelayMs(current.attempt));
-        await tx.scanJob.update({ where: { id: job.id }, data: { status: "QUEUED", availableAt: next, leasedAt: null, leaseExpiresAt: null, workerId: null, lastError: message } });
-        await tx.securityScanRun.update({ where: { id: scan.id }, data: { status: "QUEUED", finishedAt: null, terminalReason: null, leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, retryCount: { increment: 1 }, lastErrorCategory: classification.category, lastError: message } });
+        const next = new Date(Date.now() + retryDelayMs(current.attempt, Math.floor(Math.random() * 251)));
+        await tx.scanJob.updateMany({ where: { id: job.id, workerId: this.workerId, status: "RUNNING" }, data: { status: "QUEUED", availableAt: next, leasedAt: null, leaseExpiresAt: null, workerId: null, lastError: message } });
+        await tx.securityScanRun.updateMany({ where: { id: scan.id, leaseOwner: this.workerId, status: "RUNNING" }, data: { status: "QUEUED", finishedAt: null, terminalReason: null, leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, retryCount: { increment: 1 }, lastErrorCategory: classification.category, lastError: message } });
+        await new AuditEventRepository(tx).append(systemContext(), {
+          organizationId: scan.organizationId,
+          action: "RETRY_SCHEDULED",
+          purpose: "retry a transient scan execution failure",
+          targetType: "security_scan",
+          targetId: scan.id,
+          result: "FAILURE",
+          reason: message,
+          correlationId: scan.correlationId,
+          metadata: { attempt: current.attempt, nextAttemptAt: next.toISOString(), category: classification.category },
+        });
         return;
       }
-      await tx.scanJob.update({ where: { id: job.id }, data: { status: "DEAD_LETTER", leasedAt: null, leaseExpiresAt: null, workerId: null, lastError: message } });
-      await tx.securityScanRun.update({ where: { id: scan.id }, data: { status: "DEAD_LETTER", finishedAt: new Date(), leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, activeKey: null, lastErrorCategory: classification.category, lastError: message, terminalReason: "retry_exhausted" } });
+      const terminalStatus = classification.retryable ? "DEAD_LETTER" as const : "FAILED" as const;
+      await tx.scanJob.updateMany({ where: { id: job.id, workerId: this.workerId, status: "RUNNING" }, data: { status: terminalStatus === "DEAD_LETTER" ? "DEAD_LETTER" : "COMPLETED", leasedAt: null, leaseExpiresAt: null, workerId: null, lastError: message } });
+      await tx.securityScanRun.updateMany({ where: { id: scan.id, leaseOwner: this.workerId, status: "RUNNING" }, data: { status: terminalStatus, finishedAt: new Date(), leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, activeKey: null, lastErrorCategory: classification.category, lastError: message, terminalReason: terminalStatus === "DEAD_LETTER" ? "retry_exhausted" : "unrecoverable_execution_failure" } });
       await new AuditEventRepository(tx).append(systemContext(), {
         organizationId: scan.organizationId,
         action: "SCAN_DEAD_LETTERED",
@@ -133,10 +170,30 @@ export class ScanWorker {
         targetType: "security_scan",
         targetId: scan.id,
         result: "FAILURE",
-        reason: "Scan execution retry policy exhausted.",
+        reason: terminalStatus === "DEAD_LETTER" ? "Scan execution retry policy exhausted." : message,
         correlationId: scan.correlationId,
-        metadata: { attempt: current.attempt, category: classification.category },
+        metadata: { attempt: current.attempt, category: classification.category, terminalStatus },
+      });
+      await tx.scanEvent.upsert({
+        where: { scanRunId_eventType: { scanRunId: scan.id, eventType: terminalStatus === "DEAD_LETTER" ? "ScanFailed" : "ScanFailed" } },
+        create: { organizationId: scan.organizationId, scanRunId: scan.id, eventType: "ScanFailed", correlationId: scan.correlationId, payload: { status: terminalStatus, reason: classification.category } },
+        update: {},
       });
     });
+  }
+
+  private async heartbeat(jobId: string, scanId: string): Promise<void> {
+    const now = new Date();
+    const leaseExpiresAt = new Date(now.getTime() + LEASE_MS);
+    await this.db.$transaction([
+      this.db.scanJob.updateMany({
+        where: { id: jobId, workerId: this.workerId, status: "RUNNING" },
+        data: { leasedAt: now, leaseExpiresAt },
+      }),
+      this.db.securityScanRun.updateMany({
+        where: { id: scanId, leaseOwner: this.workerId, status: "RUNNING" },
+        data: { leaseAcquiredAt: now, leaseExpiresAt },
+      }),
+    ]);
   }
 }

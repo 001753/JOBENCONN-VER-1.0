@@ -9,9 +9,9 @@ const transitions: Record<ScanState, readonly ScanState[]> = {
   CANCELLING: ["CANCELLED"],
   COMPLETED: [],
   PARTIAL: [],
-  FAILED: ["QUEUED", "DEAD_LETTER"],
+  FAILED: [],
   CANCELLED: [],
-  DEAD_LETTER: ["QUEUED"],
+  DEAD_LETTER: [],
 };
 
 export function transitionScanState(from: ScanState, to: ScanState): void {
@@ -34,17 +34,25 @@ export function calculateProgress(input: { total: number | null; completed: numb
 }
 
 export function classifyRetry(error: unknown): { retryable: boolean; category: string } {
-  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
-  if (["AWS_ERROR", "DEPENDENCY_ERROR"].includes(code)) return { retryable: true, category: "transient" };
-  if (["AUTHORIZATION_ERROR", "FORBIDDEN", "ROLE_INSUFFICIENT", "VALIDATION_ERROR", "CONFLICT"].includes(code)) {
-    return { retryable: false, category: code.toLowerCase() };
+  const value = error as { code?: unknown; statusCode?: unknown; name?: unknown; message?: unknown } | null;
+  const code = value && typeof value.code === "string" ? value.code.toUpperCase() : "";
+  const status = value && typeof value.statusCode === "number" ? value.statusCode : undefined;
+  const name = value && typeof value.name === "string" ? value.name.toLowerCase() : "";
+  const message = value && typeof value.message === "string" ? value.message.toLowerCase() : "";
+  if (status === 401 || status === 403 || ["AUTHORIZATION_ERROR", "FORBIDDEN", "ROLE_INSUFFICIENT"].includes(code)) {
+    return { retryable: false, category: status === 401 ? "unauthorized" : "forbidden" };
   }
-  return { retryable: true, category: "system" };
+  if ([429, 500, 503].includes(status) || ["TIMEOUT", "TIMEOUT_ERROR", "ETIMEDOUT", "ECONNRESET", "AWS_ERROR", "DEPENDENCY_ERROR"].includes(code) || name.includes("timeout") || message.includes("timeout")) {
+    return { retryable: true, category: status ? `http_${status}` : "transient" };
+  }
+  if (["VALIDATION_ERROR", "CONFLICT"].includes(code)) return { retryable: false, category: code.toLowerCase() };
+  return { retryable: false, category: code ? code.toLowerCase() : "unrecoverable" };
 }
 
-export function retryDelayMs(attempt: number): number {
+export function retryDelayMs(attempt: number, jitterMs = 0): number {
   const safeAttempt = Math.min(Math.max(attempt, 1), 3);
-  return Math.min(60_000, 1_000 * (2 ** (safeAttempt - 1)));
+  const boundedJitter = Math.min(Math.max(Math.floor(jitterMs), 0), 250);
+  return Math.min(60_000, 1_000 * (2 ** (safeAttempt - 1)) + boundedJitter);
 }
 
 export function durationMs(startedAt: Date, finishedAt: Date): number {
