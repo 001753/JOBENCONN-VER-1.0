@@ -249,7 +249,7 @@ export class SecurityAnalysisService {
             organizationId: auth.organizationId,
             accountId,
             connectionId: account.connectionId,
-            requestedByUserId: auth.actorUserId,
+            ...(auth.actorUserId ? { requestedByUserId: auth.actorUserId } : {}),
             status: "QUEUED",
             triggerType,
             idempotencyKey: canonicalKey,
@@ -294,7 +294,12 @@ export class SecurityAnalysisService {
     } catch (error) {
       if (this.persistenceCode(error) === "P2002") {
         const raced = await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
-        if (raced) return toPublicScan(raced);
+        if (raced) {
+          if (raced.snapshotFingerprint !== fingerprint) {
+            throw new AppError("CONFLICT", "The idempotency key was reused for a different inventory snapshot.");
+          }
+          return toPublicScan(raced);
+        }
         throw new AppError("CONFLICT", "An active scan already exists for this AWS integration.");
       }
       throw error;
@@ -386,10 +391,10 @@ export class SecurityAnalysisService {
       role: "OWNER",
       context: systemContext(scan.requestedByUserId ?? undefined),
     };
-    await this.runScan(auth, scan.accountId, scan.correlationId, undefined, scan.id, attempt);
+    await this.runScan(auth, scan.accountId, scan.correlationId, undefined, scan.id, attempt, false);
   }
 
-  async runScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey?: string, existingRunId?: string, executionAttempt = 1) {
+  async runScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey?: string, existingRunId?: string, executionAttempt = 1, persistFailureOnError = true) {
     requireSecurityPermission(auth, "findings.run");
     safeUuid(accountId, "accountId");
     const account = await this.db.awsAccount.findFirst({ where: { id: accountId, organizationId: auth.organizationId } });
@@ -703,23 +708,25 @@ export class SecurityAnalysisService {
 
       return toPublicScan(result.completed);
     } catch (error) {
-      try {
-        await this.db.securityScanRun.update({
-          where: { id: scan.id },
-          data: { status: "FAILED", finishedAt: new Date() },
-        });
-        await new AuditEventRepository(this.db).append(auth.context, {
-          actorUserId: auth.actorUserId,
-          action: "SCAN_FAILED",
-          purpose: "record failed AWS security analysis",
-          targetType: "security_scan",
-          targetId: scan.id,
-          result: "FAILURE",
-          reason: "Security scan persistence or execution failed.",
-          correlationId,
-        });
-      } catch {
-        // Preserve the original failure if failure-state persistence also fails.
+      if (persistFailureOnError) {
+        try {
+          await this.db.securityScanRun.update({
+            where: { id: scan.id },
+            data: { status: "FAILED", finishedAt: new Date() },
+          });
+          await new AuditEventRepository(this.db).append(auth.context, {
+            actorUserId: auth.actorUserId,
+            action: "SCAN_FAILED",
+            purpose: "record failed AWS security analysis",
+            targetType: "security_scan",
+            targetId: scan.id,
+            result: "FAILURE",
+            reason: "Security scan persistence or execution failed.",
+            correlationId,
+          });
+        } catch {
+          // Preserve the original failure if failure-state persistence also fails.
+        }
       }
       throw error;
     }
@@ -752,7 +759,7 @@ export class SecurityAnalysisService {
     const last = visibleRuns.at(-1);
     return {
       scans: visibleRuns.map(toPublicScan),
-      ...(useCursor ? { nextCursor: hasNextPage && last ? encodeScanCursor(last.createdAt, last.id) : null } : {}),
+      nextCursor: hasNextPage && last ? encodeScanCursor(last.createdAt, last.id) : null,
       page,
       pageSize: take,
       total,

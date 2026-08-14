@@ -5,6 +5,7 @@ import { classifyRetry, retryDelayMs, TERMINAL_SCAN_STATES } from "./scan-orches
 const LEASE_MS = 30_000;
 const MAX_RETRIES = 3;
 const HEARTBEAT_MS = 10_000;
+const CIRCUIT_BREAKER_THRESHOLD = 5;
 
 type Job = Prisma.ScanJobGetPayload<object>;
 type Scan = Prisma.SecurityScanRunGetPayload<object>;
@@ -50,9 +51,9 @@ export class ScanWorker {
           const nextStreak = connection.scanFailureStreak + 1;
           await tx.awsConnection.update({
             where: { id: scan.connectionId },
-            data: { scanFailureStreak: nextStreak, ...(nextStreak >= 5 ? { status: "ERROR" } : {}) },
+            data: { scanFailureStreak: nextStreak, ...(nextStreak >= CIRCUIT_BREAKER_THRESHOLD ? { status: "ERROR" } : {}) },
           });
-          if (nextStreak === 5) {
+           if (nextStreak === CIRCUIT_BREAKER_THRESHOLD) {
             await new AuditEventRepository(tx).append(systemContext(), {
               organizationId: scan.organizationId,
               action: "CIRCUIT_BREAKER_OPENED",
@@ -142,9 +143,38 @@ export class ScanWorker {
     const message = `Scan execution failed (${classification.category}).`;
     await this.db.$transaction(async (tx) => {
       const current = await tx.scanJob.findUniqueOrThrow({ where: { id: job.id } });
+      const currentScan = await tx.securityScanRun.findUniqueOrThrow({ where: { id: scan.id } });
+      if (currentScan.status === "CANCELLING") {
+        const finishedAt = new Date();
+        await tx.securityScanRun.updateMany({
+          where: { id: scan.id, status: "CANCELLING" },
+          data: { status: "CANCELLED", finishedAt, activeKey: null, leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, terminalReason: "client_requested" },
+        });
+        await tx.scanJob.updateMany({
+          where: { id: job.id, workerId: this.workerId, status: "RUNNING" },
+          data: { status: "CANCELLED", leasedAt: null, leaseExpiresAt: null, workerId: null },
+        });
+        await new AuditEventRepository(tx).append(systemContext(), {
+          organizationId: scan.organizationId,
+          action: "SCAN_CANCELLED",
+          purpose: "complete cancellation after the worker observed a cancellation request",
+          targetType: "security_scan",
+          targetId: scan.id,
+          result: "SUCCESS",
+          reason: "The worker did not publish a terminal success after cancellation was requested.",
+          correlationId: scan.correlationId,
+          metadata: { priorStatus: "CANCELLING", attempt: current.attempt },
+        });
+        await tx.scanEvent.upsert({
+          where: { scanRunId_eventType_attempt: { scanRunId: scan.id, eventType: "ScanCancelled", attempt: current.attempt } },
+          create: { organizationId: scan.organizationId, scanRunId: scan.id, eventType: "ScanCancelled", attempt: current.attempt, correlationId: scan.correlationId, payload: { status: "CANCELLED", reason: "client_requested" } },
+          update: {},
+        });
+        return;
+      }
       const retry = classification.retryable && current.attempt <= MAX_RETRIES;
       if (retry) {
-        const next = new Date(Date.now() + retryDelayMs(current.attempt, Math.floor(Math.random() * 251)));
+        const next = new Date(Date.now() + retryDelayMs(current.attempt));
         await tx.scanJob.updateMany({ where: { id: job.id, workerId: this.workerId, status: "RUNNING" }, data: { status: "QUEUED", availableAt: next, leasedAt: null, leaseExpiresAt: null, workerId: null, lastError: message } });
         await tx.securityScanRun.updateMany({ where: { id: scan.id, leaseOwner: this.workerId, status: "RUNNING" }, data: { status: "QUEUED", finishedAt: null, terminalReason: null, leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, retryCount: { increment: 1 }, lastErrorCategory: classification.category, lastError: message } });
         await new AuditEventRepository(tx).append(systemContext(), {
@@ -163,6 +193,27 @@ export class ScanWorker {
       const terminalStatus = classification.retryable ? "DEAD_LETTER" as const : "FAILED" as const;
       await tx.scanJob.updateMany({ where: { id: job.id, workerId: this.workerId, status: "RUNNING" }, data: { status: terminalStatus === "DEAD_LETTER" ? "DEAD_LETTER" : "COMPLETED", leasedAt: null, leaseExpiresAt: null, workerId: null, lastError: message } });
       await tx.securityScanRun.updateMany({ where: { id: scan.id, leaseOwner: this.workerId, status: "RUNNING" }, data: { status: terminalStatus, finishedAt: new Date(), leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, activeKey: null, lastErrorCategory: classification.category, lastError: message, terminalReason: terminalStatus === "DEAD_LETTER" ? "retry_exhausted" : "unrecoverable_execution_failure" } });
+      if (terminalStatus === "FAILED" || terminalStatus === "DEAD_LETTER") {
+        const connection = await tx.awsConnection.findUniqueOrThrow({ where: { id: scan.connectionId } });
+        const nextStreak = connection.scanFailureStreak + 1;
+        await tx.awsConnection.update({
+          where: { id: scan.connectionId },
+          data: { scanFailureStreak: nextStreak, ...(nextStreak >= CIRCUIT_BREAKER_THRESHOLD ? { status: "ERROR" } : {}) },
+        });
+        if (nextStreak === CIRCUIT_BREAKER_THRESHOLD) {
+          await new AuditEventRepository(tx).append(systemContext(), {
+            organizationId: scan.organizationId,
+            action: "CIRCUIT_BREAKER_OPENED",
+            purpose: "stop automatic scans after five consecutive total failures",
+            targetType: "aws_connection",
+            targetId: scan.connectionId,
+            result: "FAILURE",
+            reason: "Five consecutive total scan failures.",
+            correlationId: scan.correlationId,
+            metadata: { failureStreak: nextStreak },
+          });
+        }
+      }
       await new AuditEventRepository(tx).append(systemContext(), {
         organizationId: scan.organizationId,
         action: terminalStatus === "DEAD_LETTER" ? "SCAN_DEAD_LETTERED" : "SCAN_FAILED",

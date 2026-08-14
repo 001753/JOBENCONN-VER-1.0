@@ -167,7 +167,10 @@ export class AuditEventRepository {
     const metadata = data.metadata ?? {};
     assertSafeAuditMetadata(metadata);
     try {
-      return await this.db.auditEvent.create({ data: { ...data, metadata } });
+      const { actorUserId, ...auditData } = data;
+      return await this.db.auditEvent.create({
+        data: { ...auditData, ...(actorUserId ? { actorUserId } : {}), metadata },
+      });
     } catch (error) {
       return mapPersistenceError(error);
     }

@@ -17,11 +17,12 @@ first; queued state is the source of truth.
 
 ## Retry and dead letter
 
-Transient/system failures use at most three attempts with bounded exponential
-backoff. Authorization, validation, and permission failures are not retried.
-An exhausted job becomes `DEAD_LETTER` and retains its last error and
-correlation ID. Replay is not exposed as a casual customer action; it should be
-an audited operator procedure after the cause is understood.
+Transient/system failures receive at most three retries after the initial
+attempt, with deterministic bounded exponential backoff. Authorization,
+validation, and permission failures are not retried. An exhausted job becomes
+`DEAD_LETTER` and retains its last error and correlation ID. Replay is not
+exposed as a casual customer action; it is an audited operator procedure after
+the cause is understood, and historical scan events/outcomes remain intact.
 
 ## Provider outage / credential revoke
 

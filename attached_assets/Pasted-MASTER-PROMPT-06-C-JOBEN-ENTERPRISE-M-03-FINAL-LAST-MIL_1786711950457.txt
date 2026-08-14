@@ -1,0 +1,705 @@
+MASTER PROMPT 06-C
+JOBEN ENTERPRISE — M-03 FINAL LAST-MILE COMPLETION
+
+IMPORTANT:
+
+CONTINUE FROM THE CURRENT REPOSITORY STATE.
+
+MASTER PROMPT 06-A AND 06-B HAVE ALREADY BEEN EXECUTED PARTIALLY.
+
+DO NOT REBUILD M-03.
+
+DO NOT REWRITE EXISTING SCAN ORCHESTRATION.
+
+DO NOT CREATE A SECOND IMPLEMENTATION.
+
+DO NOT TOUCH M-04 OR ANY LATER MODULE.
+
+THIS PROMPT EXISTS ONLY TO CLOSE THE REMAINING M-03
+VERIFICATION / IMPLEMENTATION GAPS AND PRODUCE FINAL PROOF.
+
+============================================================
+PRIMARY OBJECTIVE
+============================================================
+
+Make M-03 Scan & Job Orchestrator genuinely:
+
+COMPLETE
+REAL WORK
+VERIFIABLE
+DETERMINISTIC
+TENANT-SAFE
+RBAC-SAFE
+RECOVERY-SAFE
+IDEMPOTENT
+PRODUCTION-READY WITHIN ITS DEFINED SCOPE
+
+M-03 MUST NOT BE MARKED COMPLETE UNTIL ALL REQUIRED
+ACCEPTANCE GATES ARE ACTUALLY VERIFIED.
+
+============================================================
+CURRENT KNOWN VERIFIED BASELINE
+============================================================
+
+DO NOT REIMPLEMENT THESE UNLESS A TEST PROVES THEY ARE BROKEN:
+
+- TypeScript compilation baseline
+- existing test suite
+- concurrent idempotency
+- single-worker atomic claim
+- lease recovery
+- tenant isolation
+- MEMBER RBAC rejection
+- build
+- previous Prompt 06-A orchestration implementation
+- previous Prompt 06-B fixes
+
+The previous run also fixed:
+
+- retry status narrowing
+- lease recovery audit payload
+- Prisma cursor query
+- scan RBAC permission
+- cancel/failure audit state distinction
+- replay append-only behavior
+- CANCELLED audit classification
+
+Treat these as existing implementation.
+
+FIRST verify them.
+Only modify if a real regression is found.
+
+============================================================
+PHASE 1 — FINAL GAP AUDIT
+============================================================
+
+Before editing code:
+
+Inspect the current implementation and produce an internal
+M-03 checklist.
+
+Classify every item:
+
+PASS
+PARTIAL
+FAIL
+MISSING
+
+DO NOT rebuild PASS items.
+
+Only work on:
+
+PARTIAL
+FAIL
+MISSING
+
+============================================================
+PHASE 2 — RETRY PROOF
+============================================================
+
+Verify actual retry behavior for:
+
+429
+500
+503
+timeout
+
+Expected:
+
+retryable failure
+→ retry scheduled
+→ attempt incremented
+→ no duplicate logical ScanRun
+→ bounded maximum attempts
+
+Verify:
+
+401 → NO RETRY
+403 → NO RETRY
+
+Verify maximum retry reaches:
+
+FAILED or DEAD_LETTER
+
+according to the existing state model.
+
+Do not silently retry authorization failures.
+
+============================================================
+PHASE 3 — CANCEL PROOF
+============================================================
+
+Verify:
+
+QUEUED → CANCELLED
+
+RUNNING → CANCELLING → CANCELLED
+
+Verify cancel race:
+
+worker completes while cancellation occurs.
+
+Expected:
+
+one deterministic terminal state.
+
+Never:
+
+COMPLETED after CANCELLED
+because of stale worker transition.
+
+Never:
+
+CANCELLED after already-completed run
+unless the existing state machine explicitly permits it.
+
+Historical execution records remain intact.
+
+Cancel MUST NOT delete history.
+
+Audit must accurately identify:
+
+SCAN_CANCELLED
+
+and must never falsely emit:
+
+SCAN_COMPLETED
+
+for a cancelled run.
+
+============================================================
+PHASE 4 — DEAD LETTER
+============================================================
+
+Verify:
+
+retryable failure
+→ retry attempts exhausted
+→ DEAD_LETTER
+
+Verify:
+
+dead-letter item is visible to operator.
+
+Verify operator-only replay.
+
+Verify replay:
+
+- creates correct new attempt/recovery path
+- does not mutate historical evidence
+- is append-only
+- is audited
+- cannot be executed by MEMBER
+- cannot be executed cross-tenant
+
+============================================================
+PHASE 5 — CIRCUIT BREAKER
+============================================================
+
+Verify configured failure threshold.
+
+Verify:
+
+normal
+→ repeated provider failure
+→ OPEN
+
+OPEN must prevent unsafe repeated execution.
+
+Verify recovery:
+
+OPEN
+→ cooldown/recovery condition
+→ HALF_OPEN or equivalent existing state
+→ successful probe
+→ CLOSED
+
+Use the existing implementation/state model.
+
+Do not invent a second circuit-breaker architecture.
+
+============================================================
+PHASE 6 — PARTIAL / FAILURE SEMANTICS
+============================================================
+
+Verify a scan with:
+
+check A = success
+check B = failure
+check C = success
+
+must preserve:
+
+A result
+B failure
+C result
+
+and produce the correct:
+
+PARTIAL
+
+state where defined.
+
+Verify all checks failing produces the correct failure state.
+
+A failed check must NOT erase successful results.
+
+============================================================
+PHASE 7 — PROGRESS
+============================================================
+
+Verify progress is derived from durable execution state.
+
+Check:
+
+queued
+running
+completed
+failed
+partial
+cancelled
+
+Verify:
+
+completed checks
+total checks
+current progress
+duration
+failure reason
+
+are internally consistent.
+
+No fake 100% completion.
+
+No client-authoritative state.
+
+============================================================
+PHASE 8 — IDEMPOTENCY FINAL PROOF
+============================================================
+
+Verify:
+
+same idempotency key
++ same request payload
+
+→ exactly ONE logical ScanRun.
+
+Verify:
+
+same idempotency key
++ different request payload
+
+→ deterministic conflict.
+
+Verify concurrent requests.
+
+Verify database-level behavior,
+not only in-memory protection.
+
+============================================================
+PHASE 9 — PAGINATION
+============================================================
+
+Verify history endpoint:
+
+- cursor pagination
+- bounded limit
+- stable ordering
+- tenant filter BEFORE pagination
+- allowlisted sort
+- no offset-based unbounded scan
+
+Verify next cursor.
+
+Verify no duplicate records across pages.
+
+Verify no cross-tenant records can leak through pagination.
+
+============================================================
+PHASE 10 — SCHEDULE
+============================================================
+
+Verify existing schedule implementation.
+
+At minimum:
+
+create
+→ persist
+→ enabled
+→ trigger
+→ ScanRun created
+
+Verify disabled schedule does not create scans.
+
+Verify schedule is tenant-scoped.
+
+Verify authorization.
+
+Do not create a new scheduler if an existing implementation
+already exists.
+
+If schedule trigger cannot be live-tested because of the
+environment, test the deterministic trigger/service path and
+document the external limitation honestly.
+
+============================================================
+PHASE 11 — SECURITY
+============================================================
+
+Verify:
+
+MEMBER cannot:
+
+- create unauthorized scan
+- cancel unauthorized scan
+- replay dead-letter
+- modify another tenant's scan
+- access another tenant's history
+
+Verify arbitrary state transition is rejected.
+
+Verify secrets never appear in:
+
+- logs
+- audit
+- API response
+- errors
+- scan records
+- job records
+- metrics
+
+Verify correlation IDs are propagated.
+
+============================================================
+PHASE 12 — AUDIT
+============================================================
+
+Verify accurate audit events for:
+
+ScanRequested
+ScanQueued
+ScanStarted
+ScanCancelling
+ScanCancelled
+ScanCompleted
+ScanPartial
+ScanFailed
+RetryScheduled
+DeadLettered
+DeadLetterReplayed
+LeaseRecovered
+CircuitBreakerOpened
+CircuitBreakerRecovered
+ScheduleCreated
+ScheduleChanged
+SchedulePaused
+
+Audit MUST represent actual state.
+
+Never create a success audit event for failed/cancelled work.
+
+Audit records must contain relevant:
+
+organization
+actor
+target
+timestamp
+reason
+correlationId
+
+============================================================
+PHASE 13 — REAL POSTGRES INTEGRATION
+============================================================
+
+Use the configured PostgreSQL database.
+
+DO NOT RESET DATABASE.
+
+Run:
+
+Prisma generate
+Prisma validate
+migration status
+
+Apply only missing official migrations.
+
+Then run the relevant M-03 integration tests against real
+PostgreSQL.
+
+Do not claim database verification based solely on mocks.
+
+============================================================
+PHASE 14 — CONCURRENCY / RECOVERY
+============================================================
+
+Run real concurrency tests for:
+
+two workers
+same queue job
+
+Expected:
+
+only one valid claim.
+
+Test:
+
+worker claim
+→ worker disappears
+→ lease expires
+→ recovery
+→ retry/reclaim
+
+Expected:
+
+history preserved
+no duplicate logical ScanRun
+attempt accounting correct
+no impossible state transition.
+
+============================================================
+PHASE 15 — FULL TEST / BUILD GATE
+============================================================
+
+Run:
+
+typecheck
+build
+full relevant test suite
+
+If failure:
+
+fix the actual root cause.
+
+Do not:
+
+- skip test
+- weaken assertion
+- add any
+- ts-ignore
+- fake success
+- disable strict mode
+- remove failing test
+
+Repeat until green.
+
+============================================================
+PHASE 16 — RUNTIME SMOKE
+============================================================
+
+Restart the application.
+
+Verify:
+
+/health/live
+/health/ready
+
+Verify protected scan routes.
+
+Verify unauthorized request returns correct denial.
+
+Verify a deterministic orchestration path:
+
+request
+→ ScanRun
+→ queue
+→ worker
+→ execution
+→ outcome
+→ terminal state
+
+HTTP 202 means QUEUED,
+not COMPLETED.
+
+If real AWS credentials are unavailable:
+
+DO NOT FAKE AWS LIVE SUCCESS.
+
+Use the existing provider boundary/test adapter for
+orchestration verification.
+
+Mark live AWS verification separately as:
+
+VERIFICATION_REQUIRED
+
+if genuinely unavailable.
+
+============================================================
+PHASE 17 — DOCUMENTATION
+============================================================
+
+Only after tests pass:
+
+Update M-03 completion documentation.
+
+Document:
+
+- lifecycle
+- state machine
+- queue
+- worker
+- lease
+- heartbeat
+- recovery
+- retry
+- cancel
+- dead-letter
+- replay
+- circuit breaker
+- idempotency
+- schedule
+- RBAC
+- tenant isolation
+- audit
+- metrics
+- pagination
+- known limitations
+- test evidence
+
+Create/update proof record.
+
+Update capability registry.
+
+IMPORTANT:
+
+Do not claim:
+
+LIVE_VERIFIED
+
+unless actual live verification occurred.
+
+Use:
+
+IMPLEMENTED
+TEST_VERIFIED
+LIVE_VERIFIED
+VERIFICATION_REQUIRED
+
+accurately.
+
+============================================================
+FINAL M-03 GATE
+============================================================
+
+M-03 can be marked COMPLETE only when:
+
+[ ] Scan Now
+[ ] Schedule
+[ ] Idempotency
+[ ] Idempotency conflict
+[ ] Queue
+[ ] Atomic worker claim
+[ ] Lease
+[ ] Heartbeat
+[ ] Lease recovery
+[ ] Worker restart recovery
+[ ] State machine
+[ ] Progress
+[ ] Per-check outcome
+[ ] Partial result
+[ ] Total failure
+[ ] Retry 429
+[ ] Retry 500
+[ ] Retry 503
+[ ] Retry timeout
+[ ] 401 no retry
+[ ] 403 no retry
+[ ] Retry limit
+[ ] Cancel queued
+[ ] Cancel running
+[ ] Cancel race
+[ ] Dead-letter
+[ ] Operator replay
+[ ] Replay append-only
+[ ] Replay audit
+[ ] Circuit breaker open
+[ ] Circuit breaker recovery
+[ ] Tenant isolation
+[ ] RBAC
+[ ] IDOR protection
+[ ] Audit correctness
+[ ] Correlation ID
+[ ] Secret redaction
+[ ] Cursor pagination
+[ ] Schedule authorization
+[ ] PostgreSQL integration
+[ ] Concurrency proof
+[ ] Recovery proof
+[ ] Typecheck
+[ ] Build
+[ ] Full relevant tests
+[ ] Runtime smoke
+[ ] Completion dossier
+[ ] Proof record
+[ ] Capability registry
+
+============================================================
+CREDIT / TOKEN EFFICIENCY
+============================================================
+
+THIS IS CRITICAL.
+
+DO NOT REBUILD.
+
+DO NOT REFACTOR UNRELATED CODE.
+
+DO NOT INSTALL NEW DEPENDENCIES UNLESS ABSOLUTELY REQUIRED.
+
+DO NOT REPEAT ALREADY VERIFIED WORK.
+
+DO NOT BUILD FRONTEND.
+
+DO NOT BUILD M-04+.
+
+Use:
+
+AUDIT
+→ TARGETED FIX
+→ TEST
+→ VERIFY
+→ DOCUMENT.
+
+Prefer existing utilities, repositories,
+services, adapters, schemas, and tests.
+
+If everything passes:
+
+STOP.
+
+Do not perform additional improvements.
+
+============================================================
+FINAL RESPONSE
+============================================================
+
+Return a concise but complete verification report:
+
+M-03 STATUS:
+COMPLETE / PARTIAL / BLOCKED
+
+Include:
+
+1. Verified existing components
+2. Remaining gaps found
+3. Fixes applied
+4. PostgreSQL migration status
+5. Typecheck result
+6. Build result
+7. Test result
+8. Retry proof
+9. Cancel proof
+10. Dead-letter/replay proof
+11. Circuit breaker proof
+12. Concurrency proof
+13. Recovery proof
+14. Security/RBAC proof
+15. Runtime smoke result
+16. Documentation/proof status
+17. Any environment limitation
+
+ABSOLUTE RULE:
+
+DO NOT SAY "COMPLETE" IF ANY REQUIRED M-03 GATE
+HAS NOT ACTUALLY BEEN VERIFIED.
+
+DO NOT PROCEED TO MASTER PROMPT 07
+UNTIL M-03 IS VERIFIED COMPLETE.

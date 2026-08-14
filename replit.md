@@ -5,7 +5,9 @@
 TypeScript/Node repository for JOBEN Enterprise. The implemented scope includes
 the P0 persistence/HTTP foundation plus Prompt 03 identity, durable sessions,
 organization context, tenant isolation, RBAC, invitations, membership
-lifecycle, ownership protection, and audit integration.
+lifecycle, ownership protection, audit integration, and the M-03 scan/job
+orchestrator (durable queue, worker leases, retries, cancellation, replay,
+cursor history, schedules, and circuit-breaker guard).
 
 ## Development preferences
 
@@ -36,8 +38,8 @@ in production and is not a Clerk production claim.
 
 Cookie-authenticated mutations require the CSRF token returned in the
 `joben_csrf` cookie to also be sent as `X-CSRF-Token`. PostgreSQL-backed Prompt
-03 integration tests run when `DATABASE_URL` is configured and migrations have
-been applied with `npx prisma migrate deploy`.
+03 and M-03 integration tests run when `DATABASE_URL` is configured and
+migrations have been applied with `npx prisma migrate deploy`.
 
 ### Prompt 04.A AWS verification
 

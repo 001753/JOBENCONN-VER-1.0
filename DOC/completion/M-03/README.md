@@ -19,9 +19,11 @@ downstream notification/report modules.
 
 ## Operational status
 
-The queue and worker are implemented and covered by build/database tests. A
-live AWS verification is not claimed unless the AWS connection is verified by
-the existing Prompt 04 flow.
+The queue, worker, leases, recovery, retry/dead-letter path, cancellation,
+replay, circuit-breaker guard, cursor history, and deterministic schedule
+trigger are implemented and `TEST_VERIFIED` against PostgreSQL. A live AWS
+verification is not claimed unless the AWS connection is verified by the
+existing Prompt 04 flow.
 
 See `contract.md`, `permission-matrix.md`, `test-matrix.md`, `proof-record.md`,
 and `runbook.md`.
