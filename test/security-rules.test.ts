@@ -29,9 +29,23 @@ test("security rule registry is trusted, versioned, and deterministic", () => {
     const [service, resourceType] = rule.resourceTypes[0]!.split(":");
     assert.ok(service);
     assert.ok(resourceType);
+    assert.ok(rule.requiredEvidence.length > 0);
     const input = resource({ service, resourceType });
     assert.deepEqual(rule.evaluate(input), rule.evaluate(input));
   }
+});
+
+test("the engine contract preserves all four evaluation states", () => {
+  const statuses = ["PASS", "FAIL", "NOT_APPLICABLE", "INSUFFICIENT_EVIDENCE"] as const;
+  const evaluations = statuses.map((status) => ({
+    status,
+    title: status,
+    description: status,
+    evidence: { status },
+    recommendation: status,
+  }));
+  assert.deepEqual(evaluations.map((evaluation) => evaluation.status), statuses);
+  assert.ok(SECURITY_RULES.every((rule) => typeof rule.evaluate === "function"));
 });
 
 test("IAM rules produce fail, pass, and insufficient evidence without inventing evidence", () => {

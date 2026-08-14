@@ -212,169 +212,191 @@ export class SecurityAnalysisService {
       throw error;
     }
 
-    await new AuditEventRepository(this.db).append(auth.context, {
-      actorUserId: auth.actorUserId,
-      action: "SCAN_STARTED",
-      purpose: "run deterministic AWS security analysis",
-      targetType: "security_scan",
-      targetId: scan.id,
-      result: "SUCCESS",
-      correlationId,
-      metadata: { accountId: account.awsAccountId, ruleCount: activeRules.length, resourceCount: activeResources.length },
-    });
+    try {
+      await new AuditEventRepository(this.db).append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "SCAN_STARTED",
+        purpose: "run deterministic AWS security analysis",
+        targetType: "security_scan",
+        targetId: scan.id,
+        result: "SUCCESS",
+        correlationId,
+        metadata: { accountId: account.awsAccountId, ruleCount: activeRules.length, resourceCount: activeResources.length },
+      });
 
-    const violations: Array<{ resource: SecurityResourceSnapshot; rule: SecurityRule; evaluation: SecurityEvaluation }> = [];
-    const errors: Array<{ resourceId: string; ruleId: string; category: string }> = [];
-    const resolvable = new Set<string>();
-    let evaluatedResources = 0;
-    let insufficientEvidence = 0;
-    let failedResources = 0;
-    let rulesEvaluated = 0;
+      const violations: Array<{ resource: SecurityResourceSnapshot; rule: SecurityRule; evaluation: SecurityEvaluation }> = [];
+      const errors: Array<{ resourceId: string; ruleId: string; category: string }> = [];
+      const resolvable = new Set<string>();
+      let evaluatedResources = 0;
+      let insufficientEvidence = 0;
+      let failedResources = 0;
+      let rulesEvaluated = 0;
 
-    for (const resource of activeResources) {
-      const applicable = applicableSecurityRules(resource, activeRules);
-      let resourceEvaluated = false;
-      let resourceInsufficient = false;
-      let resourceFailed = false;
-      for (const rule of applicable) {
-        rulesEvaluated += 1;
-        try {
-          const evaluation = rule.evaluate(resource);
-          if (evaluation.status === "FAIL") {
-            violations.push({ resource, rule, evaluation });
-            resourceEvaluated = true;
+      for (const resource of activeResources) {
+        const applicable = applicableSecurityRules(resource, activeRules);
+        let resourceEvaluated = false;
+        let resourceInsufficient = false;
+        let resourceFailed = false;
+        for (const rule of applicable) {
+          rulesEvaluated += 1;
+          try {
+            const evaluation = rule.evaluate(resource);
+            if (evaluation.status === "FAIL") {
+              violations.push({ resource, rule, evaluation });
+              resourceEvaluated = true;
+              resourceFailed = true;
+            } else if (evaluation.status === "PASS" || evaluation.status === "NOT_APPLICABLE") {
+              resourceEvaluated = true;
+              resolvable.add(findingIdentity({ ruleId: rule.ruleId, ruleVersion: rule.version, awsAccountId: resource.awsAccountId, region: resource.region, resourceId: resource.resourceId }));
+            } else {
+              resourceInsufficient = true;
+            }
+          } catch {
             resourceFailed = true;
-          } else if (evaluation.status === "PASS" || evaluation.status === "NOT_APPLICABLE") {
-            resourceEvaluated = true;
-            resolvable.add(findingIdentity({ ruleId: rule.ruleId, ruleVersion: rule.version, awsAccountId: resource.awsAccountId, region: resource.region, resourceId: resource.resourceId }));
-          } else {
-            resourceInsufficient = true;
+            errors.push({ resourceId: resource.resourceId, ruleId: rule.ruleId, category: "RULE_EXECUTION_ERROR" });
           }
-        } catch {
-          resourceFailed = true;
-          errors.push({ resourceId: resource.resourceId, ruleId: rule.ruleId, category: "RULE_EXECUTION_ERROR" });
         }
+        if (resourceEvaluated) evaluatedResources += 1;
+        if (resourceInsufficient) insufficientEvidence += 1;
+        if (resourceFailed) failedResources += 1;
       }
-      if (resourceEvaluated) evaluatedResources += 1;
-      if (resourceInsufficient) insufficientEvidence += 1;
-      if (resourceFailed) failedResources += 1;
-    }
 
-    const existingFindings = await this.db.securityFinding.findMany({ where: { organizationId: auth.organizationId, accountId } });
-    const activeResourceIds = new Set(activeResources.map((resource) => resource.resourceId));
-    const result = await this.db.$transaction(async (tx) => {
-      let findingsCreated = 0;
-      let findingsResolved = 0;
-      const audit = new AuditEventRepository(tx);
-      for (const violation of violations) {
-        const identity = {
-          organizationId: auth.organizationId,
-          ruleId: violation.rule.ruleId,
-          ruleVersion: violation.rule.version,
-          awsAccountId: violation.resource.awsAccountId,
-          region: violation.resource.region,
-          resourceId: violation.resource.resourceId,
-        };
-        const previous = existingFindings.find((finding) => findingIdentity(finding) === findingIdentity(identity));
-        const reopened = previous?.status === "RESOLVED";
-        const data = {
-          awsResourceId: violation.resource.id,
-          accountId: violation.resource.accountId,
-          resourceType: violation.resource.resourceType,
-          severity: violation.rule.severity,
-          title: violation.evaluation.title,
-          description: violation.evaluation.description,
-          evidence: jsonValue(violation.evaluation.evidence),
-          recommendation: violation.evaluation.recommendation,
-          status: reopened ? "OPEN" as const : previous?.status ?? "OPEN" as const,
-          ...(reopened ? { resolvedAt: null, resolutionReason: null } : {}),
-          lastDetectedAt: new Date(),
-          ...(latestDiscovery ? { discoveryRunId: latestDiscovery.id } : {}),
-          scanRunId: scan.id,
-        };
-        await tx.securityFinding.upsert({
-          where: { organizationId_ruleId_ruleVersion_awsAccountId_region_resourceId: identity },
-          create: { ...identity, ...data },
-          update: data,
-        });
-        if (!previous) {
-          findingsCreated += 1;
-          await audit.append(auth.context, {
-            actorUserId: auth.actorUserId,
-            action: "FINDING_CREATED",
-            purpose: "persist security finding",
-            targetType: "security_finding",
-            result: "SUCCESS",
-            correlationId,
-            metadata: { ruleId: violation.rule.ruleId, resourceId: violation.resource.resourceId, severity: violation.rule.severity },
+      const existingFindings = await this.db.securityFinding.findMany({ where: { organizationId: auth.organizationId, accountId } });
+      const activeResourceIds = new Set(activeResources.map((resource) => resource.resourceId));
+      const result = await this.db.$transaction(async (tx) => {
+        let findingsCreated = 0;
+        let findingsResolved = 0;
+        const audit = new AuditEventRepository(tx);
+        for (const violation of violations) {
+          const identity = {
+            organizationId: auth.organizationId,
+            ruleId: violation.rule.ruleId,
+            ruleVersion: violation.rule.version,
+            awsAccountId: violation.resource.awsAccountId,
+            region: violation.resource.region,
+            resourceId: violation.resource.resourceId,
+          };
+          const previous = existingFindings.find((finding) => findingIdentity(finding) === findingIdentity(identity));
+          const reopened = previous?.status === "RESOLVED";
+          const data = {
+            awsResourceId: violation.resource.id,
+            accountId: violation.resource.accountId,
+            resourceType: violation.resource.resourceType,
+            severity: violation.rule.severity,
+            title: violation.evaluation.title,
+            description: violation.evaluation.description,
+            evidence: jsonValue(violation.evaluation.evidence),
+            recommendation: violation.evaluation.recommendation,
+            status: reopened ? "OPEN" as const : previous?.status ?? "OPEN" as const,
+            ...(reopened ? { resolvedAt: null, resolutionReason: null } : {}),
+            lastDetectedAt: new Date(),
+            ...(latestDiscovery ? { discoveryRunId: latestDiscovery.id } : {}),
+            scanRunId: scan.id,
+          };
+          await tx.securityFinding.upsert({
+            where: { organizationId_ruleId_ruleVersion_awsAccountId_region_resourceId: identity },
+            create: { ...identity, ...data },
+            update: data,
           });
-        } else if (reopened) {
+          if (!previous) {
+            findingsCreated += 1;
+            await audit.append(auth.context, {
+              actorUserId: auth.actorUserId,
+              action: "FINDING_CREATED",
+              purpose: "persist security finding",
+              targetType: "security_finding",
+              result: "SUCCESS",
+              correlationId,
+              metadata: { ruleId: violation.rule.ruleId, resourceId: violation.resource.resourceId, severity: violation.rule.severity },
+            });
+          } else if (reopened) {
+            await audit.append(auth.context, {
+              actorUserId: auth.actorUserId,
+              action: "FINDING_REOPENED",
+              purpose: "reopen security finding after a new violation",
+              targetType: "security_finding",
+              targetId: previous.id,
+              result: "SUCCESS",
+              correlationId,
+              metadata: { ruleId: violation.rule.ruleId, resourceId: violation.resource.resourceId },
+            });
+          }
+        }
+
+        for (const previous of existingFindings) {
+          if (previous.status === "RESOLVED") continue;
+          const identity = findingIdentity(previous);
+          const safeToResolve = resolvable.has(identity) || (!activeResourceIds.has(previous.resourceId) && allResources.some((resource) => resource.resourceId === previous.resourceId && resource.status !== "ACTIVE"));
+          if (!safeToResolve) continue;
+          await tx.securityFinding.update({
+            where: { id: previous.id },
+            data: { status: "RESOLVED", resolvedAt: new Date(), resolutionReason: "No violation was present in the analyzed inventory snapshot.", scanRunId: scan.id },
+          });
+          findingsResolved += 1;
           await audit.append(auth.context, {
             actorUserId: auth.actorUserId,
-            action: "FINDING_REOPENED",
-            purpose: "reopen security finding after a new violation",
+            action: "FINDING_RESOLVED",
+            purpose: "automatically resolve remediated security finding",
             targetType: "security_finding",
             targetId: previous.id,
             result: "SUCCESS",
             correlationId,
-            metadata: { ruleId: violation.rule.ruleId, resourceId: violation.resource.resourceId },
+            metadata: { ruleId: previous.ruleId, resourceId: previous.resourceId },
           });
         }
-      }
 
-      for (const previous of existingFindings) {
-        if (previous.status === "RESOLVED") continue;
-        const identity = findingIdentity(previous);
-        const safeToResolve = resolvable.has(identity) || (!activeResourceIds.has(previous.resourceId) && allResources.some((resource) => resource.resourceId === previous.resourceId && resource.status !== "ACTIVE"));
-        if (!safeToResolve) continue;
-        await tx.securityFinding.update({
-          where: { id: previous.id },
-          data: { status: "RESOLVED", resolvedAt: new Date(), resolutionReason: "No violation was present in the analyzed inventory snapshot.", scanRunId: scan.id },
+        const status = errors.length > 0 || insufficientEvidence > 0 || failedResources > 0 ? "PARTIAL" as const : "COMPLETED" as const;
+        const completed = await tx.securityScanRun.update({
+          where: { id: scan.id },
+          data: {
+            status,
+            finishedAt: new Date(),
+            totalResources: allResources.length,
+            evaluatedResources,
+            insufficientEvidence,
+            failedResources,
+            rulesEvaluated,
+            findingsCreated,
+            findingsResolved,
+            ruleErrors: jsonValue(errors),
+          },
         });
-        findingsResolved += 1;
         await audit.append(auth.context, {
           actorUserId: auth.actorUserId,
-          action: "FINDING_RESOLVED",
-          purpose: "automatically resolve remediated security finding",
-          targetType: "security_finding",
-          targetId: previous.id,
+          action: status === "PARTIAL" ? "SCAN_PARTIAL" : "SCAN_COMPLETED",
+          purpose: "complete deterministic AWS security analysis",
+          targetType: "security_scan",
+          targetId: scan.id,
           result: "SUCCESS",
+          ...(errors.length ? { reason: `${errors.length} rule execution error(s)` } : {}),
           correlationId,
-          metadata: { ruleId: previous.ruleId, resourceId: previous.resourceId },
+          metadata: { status, findingsCreated, findingsResolved, insufficientEvidence },
         });
-      }
-
-      const status = errors.length > 0 || insufficientEvidence > 0 || failedResources > 0 ? "PARTIAL" as const : "COMPLETED" as const;
-      const completed = await tx.securityScanRun.update({
-        where: { id: scan.id },
-        data: {
-          status,
-          finishedAt: new Date(),
-          totalResources: allResources.length,
-          evaluatedResources,
-          insufficientEvidence,
-          failedResources,
-          rulesEvaluated,
-          findingsCreated,
-          findingsResolved,
-          ruleErrors: jsonValue(errors),
-        },
+        return { completed, findingsCreated, findingsResolved };
       });
-      return { completed, findingsCreated, findingsResolved };
-    });
 
-    await new AuditEventRepository(this.db).append(auth.context, {
-      actorUserId: auth.actorUserId,
-      action: "SCAN_COMPLETED",
-      purpose: "complete deterministic AWS security analysis",
-      targetType: "security_scan",
-      targetId: scan.id,
-      result: "SUCCESS",
-      ...(errors.length ? { reason: `${errors.length} rule execution error(s)` } : {}),
-      correlationId,
-      metadata: { status: result.completed.status, findingsCreated: result.findingsCreated, findingsResolved: result.findingsResolved, insufficientEvidence },
-    });
-    return toPublicScan(result.completed);
+      return toPublicScan(result.completed);
+    } catch (error) {
+      try {
+        await this.db.securityScanRun.update({
+          where: { id: scan.id },
+          data: { status: "FAILED", finishedAt: new Date() },
+        });
+        await new AuditEventRepository(this.db).append(auth.context, {
+          actorUserId: auth.actorUserId,
+          action: "SCAN_FAILED",
+          purpose: "record failed AWS security analysis",
+          targetType: "security_scan",
+          targetId: scan.id,
+          result: "FAILURE",
+          reason: "Security scan persistence or execution failed.",
+          correlationId,
+        });
+      } catch {
+        // Preserve the original failure if failure-state persistence also fails.
+      }
+      throw error;
+    }
   }
 
   async listScans(auth: SecurityAuthorization, accountId: string) {
@@ -407,7 +429,7 @@ export class SecurityAnalysisService {
     const [findings, total] = await this.db.$transaction([
       this.db.securityFinding.findMany({
         where,
-        orderBy: [{ severity: "asc" }, { lastDetectedAt: "desc" }],
+        orderBy: [{ severity: "asc" }, { lastDetectedAt: "desc" }, { id: "asc" }],
         skip: (filters.page - 1) * filters.pageSize,
         take: filters.pageSize,
       }),
@@ -438,16 +460,23 @@ export class SecurityAnalysisService {
     requireSecurityPermission(auth, "findings.acknowledge");
     const finding = await this.findFinding(auth, findingId);
     if (finding.status === "RESOLVED") throw new AppError("CONFLICT", "A resolved finding cannot be acknowledged.");
-    const updated = await this.db.securityFinding.update({ where: { id: finding.id }, data: { status: "ACKNOWLEDGED", acknowledgedAt: new Date() } });
-    await new AuditEventRepository(this.db).append(auth.context, {
-      actorUserId: auth.actorUserId,
-      action: "FINDING_ACKNOWLEDGED",
-      purpose: "acknowledge security finding",
-      targetType: "security_finding",
-      targetId: finding.id,
-      result: "SUCCESS",
-      correlationId,
-      metadata: { ruleId: finding.ruleId, resourceId: finding.resourceId },
+    const updated = await this.db.$transaction(async (tx) => {
+      const result = await tx.securityFinding.updateMany({
+        where: { id: finding.id, organizationId: auth.organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } },
+        data: { status: "ACKNOWLEDGED", acknowledgedAt: finding.acknowledgedAt ?? new Date() },
+      });
+      if (result.count !== 1) throw new AppError("CONFLICT", "The finding changed before it could be acknowledged.");
+      await new AuditEventRepository(tx).append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "FINDING_ACKNOWLEDGED",
+        purpose: "acknowledge security finding",
+        targetType: "security_finding",
+        targetId: finding.id,
+        result: "SUCCESS",
+        correlationId,
+        metadata: { ruleId: finding.ruleId, resourceId: finding.resourceId },
+      });
+      return tx.securityFinding.findUniqueOrThrow({ where: { id: finding.id } });
     });
     return toPublicFinding(updated);
   }

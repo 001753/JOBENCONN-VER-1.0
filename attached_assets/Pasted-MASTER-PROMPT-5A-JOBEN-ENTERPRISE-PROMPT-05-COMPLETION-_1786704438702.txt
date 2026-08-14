@@ -1,0 +1,1172 @@
+MASTER PROMPT 5A
+JOBEN ENTERPRISE
+PROMPT 05 COMPLETION + HARDENING
+
+MODE:
+CONTINUE EXISTING REPOSITORY
+DO NOT REBUILD
+DO NOT DUPLICATE
+DO NOT START OVER
+CREDIT-EFFICIENT
+REAL WORK
+PRODUCTION-GRADE
+COMPLETED
+FULL POWER
+RESPONSIVE
+SECURE
+
+============================================================
+0. MANDATORY CONTEXT
+============================================================
+
+PROMPT 05 SUDAH DIEKSEKUSI SEBAGIAN.
+
+JANGAN menganggap repository kosong.
+
+JANGAN membangun Prompt 05 dari nol.
+
+Audit implementasi Prompt 05 yang SUDAH ADA.
+
+Gunakan:
+
+- existing AWS inventory
+- existing AWS discovery
+- existing authentication
+- existing RBAC
+- existing tenant isolation
+- existing Prisma/PostgreSQL
+- existing security service
+- existing rule engine
+- existing findings
+- existing scan infrastructure
+- existing audit infrastructure
+- existing tests
+- existing documentation
+- existing capability registry
+
+sebagai baseline.
+
+TUJUAN PROMPT 5A:
+
+MENUTUP SEMUA GAP PROMPT 05
+SAMPAI DEFINITION OF DONE BENAR-BENAR TERPENUHI.
+
+BUKAN membuat fitur baru di luar Prompt 05.
+
+============================================================
+1. FIRST ACTION — AUDIT
+============================================================
+
+SEBELUM MENULIS KODE:
+
+inspect repository aktual.
+
+Cari:
+
+- security rule engine
+- rule registry
+- security rules
+- findings schema
+- scan schema
+- scan service
+- finding service
+- finding routes
+- permissions
+- audit
+- tenant scope
+- Prisma migrations
+- tests
+- capability registry
+- documentation
+
+Bandingkan dengan MASTER PROMPT 05.
+
+Buat internal gap matrix:
+
+DONE
+PARTIAL
+MISSING
+BROKEN
+
+JANGAN mengulang komponen DONE.
+
+============================================================
+2. SOURCE OF TRUTH
+============================================================
+
+Gunakan inventory AWS yang SUDAH dibuat
+oleh Prompt 04/04.A.
+
+JANGAN membuat AWS discovery baru.
+
+Flow wajib:
+
+EXISTING AWS INVENTORY
+        ↓
+EXISTING SECURITY RULE ENGINE
+        ↓
+FINDING EVALUATION
+        ↓
+FINDING PERSISTENCE
+        ↓
+LIFECYCLE
+        ↓
+AUDIT
+        ↓
+API
+
+Jika data inventory tidak cukup untuk
+membuktikan sebuah security condition:
+
+INSUFFICIENT_EVIDENCE.
+
+JANGAN mengarang data.
+
+============================================================
+3. COMPLETE RULE ENGINE
+============================================================
+
+Pastikan rule engine benar-benar mendukung:
+
+PASS
+FAIL
+NOT_APPLICABLE
+INSUFFICIENT_EVIDENCE
+
+Jangan collapse semua keadaan
+menjadi PASS/FAIL.
+
+Test setiap state.
+
+Rule error tidak boleh menjadi PASS.
+
+Provider permission error tidak boleh menjadi PASS.
+
+Missing field tidak otomatis FAIL.
+
+============================================================
+4. RULE REGISTRY
+============================================================
+
+Selesaikan registry jika masih partial.
+
+Pastikan:
+
+- stable rule ID
+- rule version
+- severity
+- enabled/disabled
+- applicable resource type
+- required evidence
+- evaluator
+
+Registry tidak boleh menggunakan
+dynamic executable code.
+
+Jika enable/disable sudah ada:
+
+JANGAN rewrite.
+
+Tambahkan hanya test dan missing behavior.
+
+============================================================
+5. FINDING IDENTITY
+============================================================
+
+Audit canonical identity.
+
+Finding yang berasal dari:
+
+organization
++
+rule
++
+resource
+
+harus dapat dikenali secara deterministik.
+
+Jangan menghasilkan duplicate
+pada repeated scan.
+
+Database uniqueness harus digunakan
+sebagai final protection bila sesuai
+dengan existing schema.
+
+============================================================
+6. FINDING DEDUPLICATION
+============================================================
+
+WAJIB test:
+
+SCAN 1
+→ violation ditemukan
+
+SCAN 2
+→ violation yang sama
+
+Expected:
+
+SATU finding aktif.
+
+Bukan dua.
+
+SCAN 3
+→ violation berbeda
+
+Expected:
+
+finding baru hanya untuk violation berbeda.
+
+============================================================
+7. FINDING LIFECYCLE
+============================================================
+
+Pastikan lifecycle benar-benar bekerja.
+
+Minimal:
+
+OPEN
+ACKNOWLEDGED
+RESOLVED
+
+Jika terminology repository berbeda,
+gunakan terminology existing.
+
+Guard transition.
+
+Tidak boleh:
+
+RESOLVED → ACKNOWLEDGED
+tanpa aturan yang valid.
+
+Tidak boleh:
+
+ACKNOWLEDGED otomatis dianggap resolved.
+
+============================================================
+8. AUTOMATIC RESOLUTION
+============================================================
+
+Jika finding sebelumnya aktif:
+
+SCAN:
+violation = true
+
+Kemudian:
+
+inventory berubah
+violation = false
+
+SCAN ulang.
+
+Expected:
+
+finding menjadi RESOLVED.
+
+Set resolved timestamp.
+
+JANGAN delete historical finding.
+
+============================================================
+9. REOPEN
+============================================================
+
+Jika:
+
+finding RESOLVED
+
+kemudian scan berikutnya menemukan
+violation yang sama:
+
+REOPEN.
+
+JANGAN membuat duplicate finding
+jika canonical identity sama.
+
+Pastikan history tetap dapat ditelusuri.
+
+============================================================
+10. ACKNOWLEDGE
+============================================================
+
+ACKNOWLEDGE berarti:
+
+user mengetahui finding.
+
+ACKNOWLEDGE tidak berarti:
+
+violation hilang.
+
+Test:
+
+OPEN
+→ ACKNOWLEDGED
+
+scan berikutnya masih violation.
+
+Expected:
+
+tetap ACKNOWLEDGED/active sesuai
+existing state contract.
+
+============================================================
+11. ATOMIC RESOLVE + AUDIT
+============================================================
+
+Jika manual resolve tersedia:
+
+resolution mutation
++
+audit event
+
+harus atomic.
+
+Jika audit gagal:
+
+jangan menghasilkan
+false successful state.
+
+Gunakan transaction
+sesuai existing Prisma architecture.
+
+Jangan membuat audit system baru.
+
+============================================================
+12. SCAN IDEMPOTENCY
+============================================================
+
+Test:
+
+same organization
+same integration
+same inventory
+same idempotency key
+
+dua request bersamaan.
+
+Expected:
+
+tidak menghasilkan duplicate scan
+atau duplicate findings.
+
+Concurrency guard harus nyata.
+
+============================================================
+13. SCAN STATE
+============================================================
+
+Pastikan state scan konsisten:
+
+QUEUED
+RUNNING
+COMPLETED
+PARTIAL
+FAILED
+
+Gunakan state existing
+jika sudah tersedia.
+
+Jangan membuat state kedua.
+
+============================================================
+14. PARTIAL SCAN
+============================================================
+
+Simulasikan:
+
+100 resources
+80 evaluated
+10 insufficient evidence
+10 rule/provider errors
+
+Expected:
+
+scan tidak menjadi fake COMPLETE
+tanpa coverage information.
+
+Result harus menunjukkan:
+
+total
+evaluated
+insufficient
+failed
+coverage
+
+Jika existing contract memakai
+field berbeda:
+
+reuse existing field.
+
+============================================================
+15. RULE FAILURE ISOLATION
+============================================================
+
+Scenario:
+
+Rule A = success
+Rule B = error
+Rule C = success
+
+Expected:
+
+A tetap menghasilkan result.
+
+C tetap menghasilkan result.
+
+B dicatat sebagai error.
+
+Overall scan:
+
+PARTIAL
+
+jika contract mengharuskannya.
+
+Jangan kehilangan seluruh scan
+karena satu rule failure.
+
+============================================================
+16. TENANT ISOLATION — NEGATIVE TEST
+============================================================
+
+WAJIB lakukan test dua organization.
+
+Organization A:
+
+finding A.
+
+Organization B:
+
+finding B.
+
+Test:
+
+A membaca A
+→ ALLOW
+
+B membaca B
+→ ALLOW
+
+A membaca B
+→ DENY
+
+B membaca A
+→ DENY
+
+A mencoba resolve B
+→ DENY
+
+B mencoba acknowledge A
+→ DENY
+
+A mencoba menjalankan scan
+untuk integration B
+→ DENY
+
+JANGAN percaya organizationId
+dari request body sebagai authorization.
+
+Actor/session adalah source of truth.
+
+============================================================
+17. RBAC
+============================================================
+
+Verifikasi permission existing.
+
+Minimal:
+
+findings.read
+findings.run
+findings.acknowledge
+findings.resolve
+
+Jika permission sudah tersedia:
+
+reuse.
+
+Jika belum:
+
+tambahkan melalui existing RBAC.
+
+Jangan membuat authorization system baru.
+
+Test:
+
+authorized
+→ success
+
+unauthorized
+→ 403/appropriate existing error.
+
+============================================================
+18. FINDING API
+============================================================
+
+Pastikan API nyata dan database-backed.
+
+Minimal:
+
+GET findings
+GET finding detail
+run scan
+acknowledge jika tersedia
+resolve jika tersedia
+
+Semua:
+
+authentication
+authorization
+tenant scope
+validation
+safe error.
+
+Tidak boleh static JSON.
+
+============================================================
+19. FILTERING
+============================================================
+
+GET findings harus mendukung
+filter yang sudah ditentukan Prompt 05:
+
+severity
+status
+ruleId
+resourceType
+awsAccountId
+region
+
+Gunakan Prisma query.
+
+Jangan filter seluruh dataset
+di frontend.
+
+============================================================
+20. PAGINATION
+============================================================
+
+Pastikan pagination benar.
+
+Jika existing contract memakai cursor:
+
+gunakan cursor.
+
+Jangan mengubah API contract
+hanya demi implementasi baru.
+
+Test:
+
+dataset > page size.
+
+Pastikan:
+
+no duplicates
+no missing record
+stable ordering.
+
+============================================================
+21. FINDING DETAIL
+============================================================
+
+Finding detail minimal harus menampilkan:
+
+rule
+rule version
+severity
+status/result
+resource
+account
+region
+evidence/provenance reference
+detectedAt
+evaluatedAt
+coverage
+recommendation jika tersedia
+
+JANGAN expose:
+
+AWS secret
+credential
+token
+authorization header.
+
+============================================================
+22. PROVENANCE
+============================================================
+
+Audit implementasi terhadap
+PRD canonical provenance.
+
+Finding harus dapat ditelusuri ke:
+
+organization
+scanRun
+checkDefinition
+checkVersion
+resourceKey
+observed fact / inventory source
+observed/evaluated timestamp
+coverage state
+
+Jika Evidence object belum menjadi
+ownership Prompt 05:
+
+JANGAN membangun Evidence Vault penuh.
+
+Tetapi jangan mengarang
+evidence yang belum ada.
+
+Gunakan reference/provenance
+yang benar-benar tersedia.
+
+============================================================
+23. DATA QUALITY
+============================================================
+
+Pastikan:
+
+stale
+provider error
+permission error
+timeout
+missing evidence
+partial result
+
+tidak pernah menjadi PASS.
+
+Jika repository memiliki
+dataQuality/freshness fields:
+
+integrasikan.
+
+Jika belum menjadi bagian Prompt 05,
+documentasikan sebagai boundary
+tanpa membangun modul phase berikutnya.
+
+============================================================
+24. DATABASE
+============================================================
+
+Audit Prisma schema.
+
+Pastikan:
+
+- correct foreign keys
+- organization scope
+- finding uniqueness
+- useful indexes
+- valid nullable semantics
+- no duplicate models
+
+Tambahkan migration hanya jika diperlukan.
+
+JANGAN reset database.
+
+JANGAN mengubah migration
+yang sudah applied.
+
+Migration harus non-destructive.
+
+============================================================
+25. TRANSACTION SAFETY
+============================================================
+
+Pastikan mutation penting:
+
+finding lifecycle
++
+audit
+
+menggunakan transaction bila diperlukan.
+
+Evaluation jangan dilakukan
+di dalam long-running DB transaction.
+
+Pattern:
+
+LOAD
+→ EVALUATE
+→ PERSIST
+
+============================================================
+26. PERFORMANCE
+============================================================
+
+Cari dan hilangkan:
+
+N+1 query
+per finding
+per rule
+per resource
+
+Gunakan:
+
+batching
+bulk read
+batch persistence
+
+jika aman.
+
+Jangan mengorbankan tenant isolation.
+
+============================================================
+27. SECURITY
+============================================================
+
+Audit implementation untuk:
+
+- SQL injection
+- unsafe dynamic query
+- authorization bypass
+- IDOR
+- secret leakage
+- stack trace leakage
+- unsafe rule execution
+- arbitrary code execution
+
+Tidak boleh:
+
+eval
+new Function
+user executable rule.
+
+============================================================
+28. AUDIT
+============================================================
+
+Pastikan event yang relevan tercatat:
+
+SCAN_STARTED
+SCAN_COMPLETED
+SCAN_PARTIAL
+SCAN_FAILED
+FINDING_CREATED
+FINDING_ACKNOWLEDGED
+FINDING_RESOLVED
+FINDING_REOPENED
+
+Gunakan existing audit infrastructure.
+
+Jangan duplicate.
+
+============================================================
+29. OBSERVABILITY
+============================================================
+
+Minimal metric/log evidence:
+
+scan count
+scan duration
+resources evaluated
+rules evaluated
+findings created
+findings resolved
+findings reopened
+insufficient evidence
+rule errors
+partial scans
+
+Gunakan logging/metrics
+yang sudah ada.
+
+Jangan menambah platform observability
+baru hanya untuk Prompt 5.
+
+============================================================
+30. RUNBOOK
+============================================================
+
+Dokumentasikan:
+
+scan gagal
+provider permission failure
+insufficient evidence
+partial scan
+duplicate prevention
+finding stuck state
+database failure
+
+Runbook harus menjelaskan
+apa yang dilakukan operator.
+
+============================================================
+31. CAPABILITY REGISTRY
+============================================================
+
+Update existing capability registry.
+
+Capability hanya boleh:
+
+VERIFIED
+
+jika code + tests + required gate
+memang terbukti.
+
+Jangan klaim:
+
+LIVE VERIFIED
+
+jika AWS live verification
+belum dilakukan.
+
+Jika belum:
+
+VERIFICATION_REQUIRED.
+
+============================================================
+32. TEST MATRIX
+============================================================
+
+WAJIB ada test untuk:
+
+[ ] PASS
+[ ] FAIL
+[ ] NOT_APPLICABLE
+[ ] INSUFFICIENT_EVIDENCE
+[ ] rule disabled
+[ ] severity
+[ ] finding create
+[ ] duplicate prevention
+[ ] finding update
+[ ] acknowledge
+[ ] resolve
+[ ] reopen
+[ ] scan idempotency
+[ ] concurrent scan protection
+[ ] partial scan
+[ ] rule failure isolation
+[ ] tenant isolation
+[ ] RBAC
+[ ] filtering
+[ ] pagination
+[ ] audit
+[ ] secret redaction
+[ ] migration
+[ ] API smoke
+
+============================================================
+33. REAL DATABASE TEST
+============================================================
+
+JANGAN hanya unit test.
+
+Gunakan PostgreSQL yang sudah tersedia.
+
+Run:
+
+migration
+→ create organization
+→ create inventory
+→ run scan
+→ persist findings
+→ query findings
+→ lifecycle mutation
+→ audit verification.
+
+Semua harus benar-benar
+database-backed.
+
+============================================================
+34. NO FAKE AWS
+============================================================
+
+Jika environment tidak memiliki
+AWS credentials live:
+
+JANGAN mengarang live result.
+
+Gunakan deterministic fixture
+hanya untuk automated test.
+
+Final capability status:
+
+LIVE VERIFICATION PENDING
+
+jika memang belum ada live AWS.
+
+============================================================
+35. RESPONSIVE UI
+============================================================
+
+Jika Prompt 05 sudah memiliki
+finding UI:
+
+audit responsive behavior.
+
+Minimal:
+
+desktop
+tablet
+mobile
+
+Pastikan:
+
+finding severity
+status
+resource
+detail
+filter
+
+tetap usable.
+
+JANGAN redesign seluruh aplikasi.
+
+Jika UI belum termasuk scope existing
+Prompt 05:
+
+JANGAN membuat dashboard baru.
+
+============================================================
+36. DOCUMENTATION
+============================================================
+
+Update:
+
+AWS security analysis documentation
+finding lifecycle
+scan lifecycle
+rule registry
+API
+limitations
+test evidence
+runbook
+
+Gunakan bahasa Indonesia
+untuk dokumentasi produk,
+dengan istilah teknis resmi.
+
+============================================================
+37. ACCEPTANCE SCENARIO
+============================================================
+
+EXECUTE end-to-end scenario:
+
+1. Organization A dibuat.
+2. AWS inventory A tersedia.
+3. Security scan A dijalankan.
+4. Findings A dibuat.
+5. Scan A kedua dijalankan.
+6. Tidak ada duplicate.
+7. Resource diperbaiki.
+8. Scan A ketiga.
+9. Finding resolved.
+10. Resource kembali melanggar.
+11. Scan A keempat.
+12. Finding reopened.
+13. Organization B dibuat.
+14. B tidak dapat membaca A.
+15. B tidak dapat mutate A.
+16. Unauthorized user tidak dapat run scan.
+17. Audit event tersedia.
+18. Database state konsisten.
+
+============================================================
+38. BUILD GATE
+============================================================
+
+Jalankan command existing project.
+
+Minimal:
+
+npx prisma generate
+npx prisma validate
+npx prisma migrate status
+npm test
+npm run build
+
+Jika tersedia:
+
+npm run typecheck
+npm run lint
+
+Jangan menambah dependency
+kecuali benar-benar diperlukan.
+
+============================================================
+39. FINAL GAP AUDIT
+============================================================
+
+SEBELUM menyatakan COMPLETE:
+
+bandingkan implementasi dengan
+MASTER PROMPT 05 satu per satu.
+
+Buat internal checklist:
+
+DONE
+PARTIAL
+MISSING
+
+Jika masih ada PARTIAL/MISSING
+yang termasuk scope Prompt 05:
+
+IMPLEMENT SEKARANG.
+
+JANGAN hanya mendokumentasikan gap
+jika gap tersebut masih merupakan
+scope Prompt 05.
+
+============================================================
+40. DEFINITION OF DONE
+============================================================
+
+Prompt 05 baru COMPLETE jika:
+
+[ ] Rule engine real
+[ ] Rule registry real
+[ ] Initial security rules real
+[ ] Four result states
+[ ] Rule version
+[ ] Severity
+[ ] Finding persistence
+[ ] Deterministic finding identity
+[ ] Deduplication
+[ ] Finding lifecycle
+[ ] Automatic resolution
+[ ] Reopen
+[ ] Scan persistence
+[ ] Scan idempotency
+[ ] Partial scan
+[ ] Rule failure isolation
+[ ] Tenant isolation
+[ ] RBAC
+[ ] Findings API
+[ ] Filtering
+[ ] Pagination
+[ ] Provenance
+[ ] Audit
+[ ] Secret redaction
+[ ] PostgreSQL migration
+[ ] Database constraints/indexes
+[ ] Integration tests
+[ ] Negative security tests
+[ ] Build passes
+[ ] Typecheck passes
+[ ] Documentation updated
+[ ] Capability registry updated
+[ ] Runbook updated
+[ ] No fake AWS claim
+
+============================================================
+41. STRICT CREDIT-SAVING RULE
+============================================================
+
+KERJAKAN HANYA GAP.
+
+JANGAN:
+
+- rebuild
+- refactor unrelated
+- redesign
+- add new dependency tanpa kebutuhan
+- create duplicate service
+- create duplicate model
+- create duplicate AWS connector
+- create new authentication
+- create new RBAC
+- create new audit system
+- create new queue
+- create dashboard besar
+- implement Prompt 06
+
+Jika component sudah PASS:
+
+SKIP.
+
+Jika test sudah ada:
+
+EXTEND ONLY.
+
+Jika schema sudah benar:
+
+DO NOT TOUCH.
+
+Jika migration sudah applied:
+
+DO NOT RESET.
+
+============================================================
+42. HARD STOP
+============================================================
+
+Setelah seluruh Definition of Done
+Prompt 05 terpenuhi:
+
+STOP.
+
+JANGAN lanjut Prompt 06.
+
+Jangan membangun remediation,
+compliance expansion,
+AI,
+report,
+billing,
+GitHub,
+atau provider kedua.
+
+============================================================
+43. FINAL RESPONSE REQUIRED
+============================================================
+
+Setelah selesai, laporkan:
+
+1. Prompt 05 status:
+   COMPLETE / PARTIAL / BLOCKED
+
+2. Gap yang ditemukan.
+
+3. Gap yang diperbaiki.
+
+4. Files changed.
+
+5. Database migration.
+
+6. Rule coverage.
+
+7. Finding lifecycle evidence.
+
+8. Deduplication evidence.
+
+9. Tenant isolation evidence.
+
+10. RBAC evidence.
+
+11. Scan idempotency evidence.
+
+12. Partial/error handling evidence.
+
+13. Audit evidence.
+
+14. Test count:
+    passed / failed
+
+15. Build/typecheck result.
+
+16. Runtime smoke result.
+
+17. Capability registry status.
+
+18. AWS live verification status.
+
+19. Remaining limitations.
+
+20. Exact reason jika Prompt 05
+    masih belum dapat dinyatakan COMPLETE.
+
+JANGAN menyatakan COMPLETE
+hanya karena code berhasil build.
+
+============================================================
+EXECUTE PROMPT 5A NOW.
+
+CONTINUE CURRENT REPOSITORY.
+
+CLOSE PROMPT 05 COMPLETELY.
+
+DO NOT REBUILD.
+
+DO NOT DUPLICATE.
+
+REAL WORK ONLY.
+
+COMPLETED ONLY WHEN ALL GATES PASS.

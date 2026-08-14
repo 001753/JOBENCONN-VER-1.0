@@ -80,6 +80,19 @@ test("Prompt 05 scan persistence, deduplication, lifecycle, tenant isolation, an
     assert.equal(replay.id, first.id);
     assert.equal(await db.securityFinding.count({ where: { organizationId: loginA.organizationId } }), 2);
 
+    const concurrent = await Promise.all([
+      service.runScan(authA, account.id, `security-concurrent-a-${suffix}`, `security-concurrent-${suffix}`),
+      service.runScan(authA, account.id, `security-concurrent-b-${suffix}`, `security-concurrent-${suffix}`),
+    ]);
+    assert.equal(concurrent[0]!.id, concurrent[1]!.id);
+    assert.equal(await db.securityScanRun.count({
+      where: {
+        organizationId: loginA.organizationId,
+        idempotencyKey: `${loginA.organizationId}:${account.id}:security-concurrent-${suffix}`,
+      },
+    }), 1);
+    assert.equal(await db.securityFinding.count({ where: { organizationId: loginA.organizationId } }), 2);
+
     const page = await service.listFindings(authA, { page: 1, pageSize: 1 });
     assert.equal(page.total, 2);
     assert.equal(page.findings.length, 1);
@@ -87,6 +100,23 @@ test("Prompt 05 scan persistence, deduplication, lifecycle, tenant isolation, an
 
     const tenantBPage = await service.listFindings(authB, { page: 1, pageSize: 10 });
     assert.equal(tenantBPage.total, 0);
+    const finding = (await db.securityFinding.findFirst({ where: { organizationId: loginA.organizationId, ruleId: "AWS-SEC-003" } }))!;
+    await assert.rejects(
+      service.getFinding(authB, finding.id),
+      (error: unknown) => error instanceof AppError && error.code === "NOT_FOUND",
+    );
+    await assert.rejects(
+      service.acknowledgeFinding(authB, finding.id, `security-cross-tenant-ack-${suffix}`),
+      (error: unknown) => error instanceof AppError && error.code === "NOT_FOUND",
+    );
+    await assert.rejects(
+      service.resolveFinding(authB, finding.id, "cross-tenant mutation must be denied", `security-cross-tenant-resolve-${suffix}`),
+      (error: unknown) => error instanceof AppError && error.code === "NOT_FOUND",
+    );
+    await assert.rejects(
+      service.runScan(authB, account.id, `security-cross-tenant-scan-${suffix}`),
+      (error: unknown) => error instanceof AppError && error.code === "NOT_FOUND",
+    );
     const memberAuth = customerSecurityAuthorization({
       actorUserId: loginA.actor.userId,
       organizationId: loginA.organizationId,
@@ -108,7 +138,6 @@ test("Prompt 05 scan persistence, deduplication, lifecycle, tenant isolation, an
     assert.equal(reopened.findingsCreated, 0);
     assert.equal(await db.securityFinding.count({ where: { organizationId: loginA.organizationId, status: "OPEN" } }), 2);
 
-    const finding = (await db.securityFinding.findFirst({ where: { organizationId: loginA.organizationId, ruleId: "AWS-SEC-003" } }))!;
     const acknowledged = await service.acknowledgeFinding(authA, finding.id, `security-ack-${suffix}`);
     assert.equal(acknowledged.status, "ACKNOWLEDGED");
     const stillOpen = await service.runScan(authA, account.id, `security-scan-ack-${suffix}`, `security-ack-scan-${suffix}`);

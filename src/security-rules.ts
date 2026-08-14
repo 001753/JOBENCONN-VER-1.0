@@ -34,6 +34,7 @@ export interface SecurityRule {
   readonly description: string;
   readonly severity: SecuritySeverity;
   readonly resourceTypes: readonly string[];
+  readonly requiredEvidence: readonly string[];
   evaluate(resource: SecurityResourceSnapshot): SecurityEvaluation;
 }
 
@@ -61,6 +62,7 @@ const s3EncryptionRule: SecurityRule = {
   description: "S3 buckets should expose explicit server-side encryption evidence.",
   severity: "HIGH",
   resourceTypes: ["S3:bucket"],
+  requiredEvidence: ["metadata.encryption"],
   evaluate(resource) {
     const metadata = metadataRecord(resource);
     const value = metadata.encrypted ?? metadata.encryptionEnabled ?? metadata.serverSideEncryption ?? metadata.encryption;
@@ -101,6 +103,7 @@ const iamMfaRule: SecurityRule = {
   description: "The IAM account summary should report MFA-enabled users.",
   severity: "HIGH",
   resourceTypes: ["IAM:account-summary"],
+  requiredEvidence: ["metadata.summaryMap.AccountMFAEnabled"],
   evaluate(resource) {
     const value = summaryValue(resource, "AccountMFAEnabled");
     if (value === undefined) {
@@ -148,6 +151,7 @@ const iamRootKeysRule: SecurityRule = {
   description: "The IAM account summary should report no account-level access keys.",
   severity: "CRITICAL",
   resourceTypes: ["IAM:account-summary"],
+  requiredEvidence: ["metadata.summaryMap.AccountAccessKeysPresent"],
   evaluate(resource) {
     const value = summaryValue(resource, "AccountAccessKeysPresent");
     if (value === undefined) {
@@ -195,6 +199,7 @@ const ec2PublicExposureRule: SecurityRule = {
   description: "EC2 instances should not expose a public address unless explicitly assessed.",
   severity: "HIGH",
   resourceTypes: ["EC2:instance"],
+  requiredEvidence: ["metadata.publicAccess", "metadata.publicIpAddress", "metadata.associatePublicIpAddress"],
   evaluate(resource) {
     const metadata = metadataRecord(resource);
     const field = ["publicAccess", "publicIpAddress", "associatePublicIpAddress"].find((key) => metadata[key] !== undefined);

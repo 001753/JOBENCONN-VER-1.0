@@ -69,8 +69,30 @@ queries. Mutations require the existing CSRF header.
 - `POST /security/findings/:findingId/resolve` with a required `reason`
 
 Finding list ordering is severity priority (`CRITICAL` through `INFO`) and
-then latest detection. The API returns only normalized finding/resource fields,
+then latest detection and finding ID for stable pagination. The API returns only normalized finding/resource fields,
 not AWS credentials or secret material.
+
+## Operator runbook
+
+- **Scan gagal:** cek `GET /security/scans/:scanId`, correlation ID, dan audit
+  `SCAN_FAILED`. Periksa database/provider availability lalu jalankan ulang
+  dengan idempotency key baru hanya setelah penyebabnya diperbaiki.
+- **Provider permission failure:** jangan menganggap hasil sebagai `PASS`.
+  Perbaiki IAM policy sesuai `DOC/AWS-INTEGRATION.md`, ulangi discovery, lalu
+  ulangi scan.
+- **Insufficient evidence:** lengkapi field inventory yang disebut
+  `requiredEvidence` pada rule; hasil ini tetap `PARTIAL`, bukan `FAIL`.
+- **Partial scan:** gunakan `totalResources`, `evaluatedResources`,
+  `insufficientEvidence`, `failedResources`, dan `ruleErrors` untuk menentukan
+  cakupan sebelum mengambil keputusan.
+- **Duplicate prevention:** gunakan kembali idempotency key untuk retry request
+  yang sama. Key yang sama untuk snapshot berbeda ditolak dengan `CONFLICT`.
+- **Finding stuck state:** periksa status scan dan event audit berdasarkan
+  `scanRunId`; jangan menghapus finding historis. Resolve manual memerlukan
+  alasan operator dan tercatat atomically bersama mutasinya.
+- **Database failure:** anggap hasil tidak berhasil sampai status scan dan audit
+  dapat diverifikasi; perbaiki koneksi/migration dan ulangi operasi dengan key
+  yang sesuai.
 
 ## Known limitations
 
