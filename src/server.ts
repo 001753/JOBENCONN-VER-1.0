@@ -1,5 +1,6 @@
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AppConfig } from "./config.js";
+import { checkDatabaseConnection } from "./database.js";
 import { AppError, errorResponse } from "./errors.js";
 import { StructuredLogger } from "./logger.js";
 
@@ -20,7 +21,7 @@ function applySecurityHeaders(response: ServerResponse): void {
   response.setHeader("Cache-Control", "no-store");
 }
 
-function route(request: IncomingMessage, response: ServerResponse, config: AppConfig): void {
+async function route(request: IncomingMessage, response: ServerResponse, config: AppConfig): Promise<void> {
   const method = request.method ?? "GET";
   const path = new URL(request.url ?? "/", "http://joben.local").pathname;
 
@@ -33,16 +34,24 @@ function route(request: IncomingMessage, response: ServerResponse, config: AppCo
     return;
   }
   if (path === "/health/ready") {
+    if (config.databaseUrl) {
+      try {
+        await checkDatabaseConnection();
+      } catch (error) {
+        throw new AppError("DEPENDENCY_ERROR", "Durable database is unavailable.", { cause: error });
+      }
+    }
     sendJson(response, 200, {
       status: "ready",
       endpoint: "readiness",
-      checks: { configuration: "pass" },
-      note: "No external dependency is required by the current P0 foundation.",
+      checks: { configuration: "pass", database: config.databaseUrl ? "pass" : "not_configured" },
+      note: config.databaseUrl
+        ? "PostgreSQL connectivity is verified for this process."
+        : "DATABASE_URL is not configured for this development/test process.",
     });
     return;
   }
 
-  void config;
   throw new AppError("NOT_FOUND", "Route not found.");
 }
 
@@ -50,30 +59,32 @@ export function createAppServer(config: AppConfig, logger: StructuredLogger): Se
   return createHttpServer((request, response) => {
     applySecurityHeaders(response);
     const startedAt = Date.now();
-    try {
-      const contentLength = Number(request.headers["content-length"] ?? 0);
-      if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
-        throw new AppError("VALIDATION_ERROR", "Request body exceeds the 1 MiB limit.");
+    void (async () => {
+      try {
+        const contentLength = Number(request.headers["content-length"] ?? 0);
+        if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
+          throw new AppError("VALIDATION_ERROR", "Request body exceeds the 1 MiB limit.");
+        }
+        await route(request, response, config);
+        logger.info("http.request.completed", {
+          method: request.method,
+          path: request.url,
+          statusCode: response.statusCode,
+          durationMs: Date.now() - startedAt,
+        });
+      } catch (error) {
+        const appError = error instanceof AppError ? error : new AppError("INTERNAL_ERROR", "Unhandled request error.", { cause: error });
+        const payload = errorResponse(appError);
+        sendJson(response, appError.statusCode, payload);
+        logger.error("http.request.failed", {
+          method: request.method,
+          path: request.url,
+          statusCode: appError.statusCode,
+          errorCode: appError.code,
+          errorType: error instanceof Error ? error.name : typeof error,
+          durationMs: Date.now() - startedAt,
+        });
       }
-      route(request, response, config);
-      logger.info("http.request.completed", {
-        method: request.method,
-        path: request.url,
-        statusCode: response.statusCode,
-        durationMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      const appError = error instanceof AppError ? error : new AppError("INTERNAL_ERROR", "Unhandled request error.", { cause: error });
-      const payload = errorResponse(appError);
-      sendJson(response, appError.statusCode, payload);
-      logger.error("http.request.failed", {
-        method: request.method,
-        path: request.url,
-        statusCode: appError.statusCode,
-        errorCode: appError.code,
-        errorType: error instanceof Error ? error.name : typeof error,
-        durationMs: Date.now() - startedAt,
-      });
-    }
+    })();
   });
 }

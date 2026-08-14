@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+  REMOVED
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+enum CapabilityState {
+  PLANNED
+  NOT_IMPLEMENTED
+  VERIFICATION_REQUIRED
+  DEGRADED
+  LIVE_VERIFIED
+  DEPRECATED
+}
+
+enum IdempotencyStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+model User {
+  id                  String              @id @default(uuid()) @db.Uuid
+  externalIdentityRef String?             @unique @db.VarChar(255)
+  status              UserStatus          @default(ACTIVE)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+  memberships         Membership[]
+  invitationsAccepted Invitation[]        @relation("InvitationAcceptedBy")
+  auditEvents         AuditEvent[]        @relation("AuditActor")
+  idempotencyRecords  IdempotencyRecord[]
+
+  @@index([status])
+}
+
+model Organization {
+  id                  String              @id @default(uuid()) @db.Uuid
+  name                String              @db.VarChar(200)
+  slug                String              @unique @db.VarChar(120)
+  status              OrganizationStatus  @default(ACTIVE)
+  homeRegion          String?             @db.VarChar(80)
+  dataResidencyPolicy String?             @db.VarChar(120)
+  locale              String?             @db.VarChar(32)
+  timezone            String?             @db.VarChar(64)
+  currency            String?             @db.VarChar(3)
+  taxProfile          String?             @db.VarChar(120)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
+  memberships         Membership[]
+  invitations         Invitation[]
+  auditEvents         AuditEvent[]
+  capabilityRecords   CapabilityRecord[]
+  idempotencyRecords  IdempotencyRecord[]
+
+  @@index([status])
+}
+
+model Membership {
+  id             String           @id @default(uuid()) @db.Uuid
+  userId         String           @db.Uuid
+  organizationId String           @db.Uuid
+  role           String           @db.VarChar(80)
+  status         MembershipStatus @default(ACTIVE)
+  version        Int              @default(1)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status])
+  @@index([userId, status])
+}
+
+model Invitation {
+  id               String           @id @default(uuid()) @db.Uuid
+  organizationId   String           @db.Uuid
+  invitedEmail     String           @db.VarChar(320)
+  role             String           @db.VarChar(80)
+  tokenDigest      String           @unique @db.VarChar(128)
+  status           InvitationStatus @default(PENDING)
+  expiresAt        DateTime         @db.Timestamptz(3)
+  acceptedAt       DateTime?        @db.Timestamptz(3)
+  revokedAt        DateTime?        @db.Timestamptz(3)
+  acceptedByUserId String?          @db.Uuid
+  version          Int              @default(1)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  acceptedBy       User?            @relation("InvitationAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, expiresAt])
+  @@index([invitedEmail, organizationId])
+}
+
+model AuditEvent {
+  id             String        @id @default(uuid()) @db.Uuid
+  actorUserId    String?       @db.Uuid
+  organizationId String?       @db.Uuid
+  action         String        @db.VarChar(160)
+  purpose        String        @db.VarChar(160)
+  targetType     String?       @db.VarChar(120)
+  targetId       String?       @db.VarChar(255)
+  result         AuditResult
+  reason         String?       @db.VarChar(500)
+  correlationId  String        @db.VarChar(128)
+  metadata       Json          @default("{}")
+  schemaVersion  Int           @default(1)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  actor          User?         @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@index([correlationId])
+}
+
+model CapabilityRecord {
+  id                  String          @id @default(uuid()) @db.Uuid
+  organizationId      String?         @db.Uuid
+  capabilityId        String          @unique @db.VarChar(160)
+  module              String          @db.VarChar(120)
+  version             String          @db.VarChar(80)
+  state               CapabilityState
+  sourceOfTruth       String          @db.VarChar(255)
+  verificationStatus  String          @db.VarChar(120)
+  proofReference      String?         @db.VarChar(500)
+  dependencyReference String?         @db.VarChar(500)
+  reviewer            String?         @db.VarChar(255)
+  verifiedAt          DateTime?       @db.Timestamptz(3)
+  expiresAt           DateTime?       @db.Timestamptz(3)
+  createdAt           DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime        @updatedAt @db.Timestamptz(3)
+  organization        Organization?   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  @@index([module, state])
+  @@index([organizationId, module])
+}
+
+model IdempotencyRecord {
+  id                 String            @id @default(uuid()) @db.Uuid
+  organizationId     String?           @db.Uuid
+  scopeKey           String            @db.VarChar(160)
+  key                String            @db.VarChar(255)
+  actorUserId        String?           @db.Uuid
+  operationName      String            @db.VarChar(160)
+  requestFingerprint String            @db.VarChar(128)
+  status             IdempotencyStatus @default(IN_PROGRESS)
+  resultReference    String?           @db.VarChar(500)
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  expiresAt          DateTime          @db.Timestamptz(3)
+  version            Int               @default(1)
+  organization       Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor              User?             @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([scopeKey, key])
+  @@index([organizationId, key])
+  @@index([expiresAt, status])
+}

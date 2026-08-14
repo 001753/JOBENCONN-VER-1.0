@@ -25,3 +25,13 @@ implementations.
 
 **Why:** A route or mock response must not be mistaken for a verified
 capability. Future work must add explicit contracts and acceptance gates.
+
+## ADR-004 — Explicit organization/system contexts and optimistic concurrency
+
+Customer repository calls require an organization context; system operations
+must opt into a separate system context. Important mutable records condition
+updates on an integer `version` and return a conflict when stale.
+
+**Why:** This keeps accidental cross-tenant reads and lost updates out of the
+data-access boundary before authentication and authorization are implemented in
+Prompt 03.

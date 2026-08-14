@@ -1,4 +1,5 @@
 import { loadConfig } from "./config.js";
+import { disconnectPrisma } from "./database.js";
 import { StructuredLogger } from "./logger.js";
 import { createAppServer } from "./server.js";
 
@@ -15,7 +16,9 @@ try {
   });
   const shutdown = (signal: string) => {
     logger.info("application.shutdown.requested", { signal });
-    server.close(() => process.exit(0));
+    server.close(() => {
+      void disconnectPrisma().finally(() => process.exit(0));
+    });
   };
   process.once("SIGTERM", () => shutdown("SIGTERM"));
   process.once("SIGINT", () => shutdown("SIGINT"));
