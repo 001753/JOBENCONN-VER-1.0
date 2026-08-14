@@ -1,0 +1,1081 @@
+MASTER PROMPT 08
+JOBEN ENTERPRISE
+FIRST REAL AWS CONTROL
+M-06 INITIAL CONTROL EVALUATION
+GATE B — FIRST LIVE AWS VERTICAL SLICE
+
+============================================================
+MISSION
+============================================================
+
+CONTINUE THE EXISTING JOBEN ENTERPRISE REPOSITORY.
+
+IMPORTANT:
+
+MASTER PROMPT 01–07/07B HAVE ALREADY BEEN EXECUTED.
+
+DO NOT BUILD JOBEN FROM ZERO.
+
+DO NOT REBUILD:
+
+- PostgreSQL foundation
+- Prisma architecture
+- tenant/auth/RBAC
+- audit foundation
+- AWS provider adapter
+- credential flow
+- scan orchestration
+- queue/worker
+- Evidence Vault
+- evidence hashing
+- evidence redaction
+- evidence immutability
+- evidence retention
+- existing M-03/M-04/M-05 functionality
+
+REUSE THE EXISTING IMPLEMENTATION.
+
+THIS PROMPT STARTS:
+
+M-06 INITIAL REAL AWS CONTROL EVALUATION.
+
+PRIMARY OBJECTIVE:
+
+IMPLEMENT THE FIRST REAL AWS SECURITY CONTROL AS A
+DETERMINISTIC END-TO-END VERTICAL SLICE.
+
+TARGET:
+
+AWS
+→ provider adapter
+→ scan orchestration
+→ real AWS observation
+→ Evidence Vault
+→ deterministic control evaluator
+→ control result/finding
+→ provenance
+→ audit/event
+→ API
+→ verification proof
+
+GATE:
+
+GATE B CANDIDATE / FIRST LIVE VERTICAL SLICE.
+
+============================================================
+PRD SOURCE OF TRUTH
+============================================================
+
+Use the repository's canonical:
+
+DOC/PRD-JOBEN-ENTERPRISE.md
+
+and existing:
+
+CAPABILITY-REGISTRY
+decision log
+completion dossiers
+provider matrix
+M-03/M-04/M-05 implementation
+
+Do not invent provider API behavior.
+
+When AWS API behavior, IAM permission, response shape,
+rate limit, or documentation revision is required:
+
+use official AWS documentation/current SDK contracts
+and record the source/revision in the provider/check dossier.
+
+Never invent permissions or endpoint behavior.
+
+============================================================
+SCOPE BOUNDARY
+============================================================
+
+THIS PROMPT IS ONLY:
+
+FIRST REAL AWS CONTROL.
+
+DO NOT IMPLEMENT ALL EIGHT AWS CHECKS.
+
+Do NOT build:
+
+- password policy check
+- S3 public access check
+- S3 encryption check
+- CloudTrail check
+- security group exposure check
+- unused access key check
+- full admin inline policy check
+
+unless an existing implementation already contains them and
+they are merely required for compatibility.
+
+Do not expand their functionality.
+
+Those checks belong to the subsequent AWS-check work package.
+
+============================================================
+FIRST CONTROL SELECTION
+============================================================
+
+Use:
+
+AWS ROOT ACCOUNT MFA
+
+as the first real control unless the existing provider contract,
+sandbox permissions, or repository architecture proves that
+another PRD-listed check is already the designated first
+live-verified check.
+
+If Root MFA is technically unavailable in the supplied
+sandbox/account:
+
+DO NOT fake it.
+
+Select the smallest PRD-approved alternative only after recording
+a decision log explaining:
+
+- reason
+- provider limitation
+- required permission
+- data available
+- why the alternative is still high-value
+- impact on Gate B
+
+Never invent a successful result.
+
+============================================================
+CONTROL IDENTITY
+============================================================
+
+Create a stable control/check identity.
+
+Example structure:
+
+checkId:
+AWS-IAM-ROOT-MFA
+
+controlId:
+AWS-IAM-ROOT-MFA
+
+checkVersion:
+versioned deterministic evaluator version
+
+The exact naming must follow existing repository conventions.
+
+Do not create duplicate registries.
+
+The existing check registry must remain the
+single source of truth.
+
+============================================================
+CONTROL CONTRACT
+============================================================
+
+Define a versioned contract containing:
+
+checkId
+checkVersion
+provider
+service
+operation
+requiredPermissions
+inputSchema
+outputSchema
+resourceType
+resourceKeyStrategy
+observedAt
+coverage
+error taxonomy
+freshness expectation
+evaluator version
+provenance requirements
+SOC 2 mapping
+remediation template
+fixture reference
+
+The evaluator must be deterministic.
+
+Same normalized observation
++
+same evaluator version
++
+same policy input
+
+MUST produce the same result.
+
+============================================================
+AWS OBSERVATION
+============================================================
+
+Use the EXISTING AWS adapter.
+
+Do not create a parallel AWS client abstraction.
+
+The control must obtain its observation from the
+real provider contract.
+
+For Root MFA:
+
+obtain the authoritative AWS account-level MFA state using
+the appropriate existing AWS IAM/API capability.
+
+Do not infer MFA status from unrelated metadata.
+
+Do not infer from account name.
+
+Do not infer from demo data.
+
+============================================================
+PERMISSION CONTRACT
+============================================================
+
+Define the minimum AWS permission required.
+
+Store/document:
+
+provider
+service
+operation
+action
+permission
+purpose
+risk
+API documentation revision
+sandbox verification status
+
+The control must fail closed when permission is missing.
+
+Expected distinction:
+
+PERMISSION_DENIED
+
+is NOT:
+
+FAIL
+
+and is NOT:
+
+PASS.
+
+No permission means insufficient evidence / error according
+to the existing JOBEN taxonomy.
+
+============================================================
+EVALUATOR
+============================================================
+
+Implement:
+
+evaluateRootMfa(observation)
+
+or equivalent repository naming.
+
+Allowed deterministic states:
+
+PASS
+FAIL
+ERROR
+NOT_APPLICABLE
+
+If the repository already has a richer state taxonomy,
+reuse it.
+
+Do not introduce an incompatible state system.
+
+Rules:
+
+PASS:
+
+authoritative AWS observation proves root MFA enabled.
+
+FAIL:
+
+authoritative AWS observation proves root MFA disabled.
+
+ERROR:
+
+provider request failed,
+schema invalid,
+unexpected response,
+timeout,
+or other non-authoritative execution failure.
+
+NOT_APPLICABLE:
+
+only when the provider contract explicitly establishes
+that the control does not apply.
+
+Never convert:
+
+missing data
+permission denied
+timeout
+provider outage
+schema drift
+
+into PASS.
+
+============================================================
+EVIDENCE-FIRST RULE
+============================================================
+
+The control MUST NOT evaluate arbitrary in-memory data
+as customer truth.
+
+Pipeline:
+
+AWS request
+→ raw provider observation
+→ redaction
+→ schema validation
+→ canonicalization
+→ hash
+→ immutable Evidence Vault
+→ evidence verification
+→ deterministic evaluator
+→ control result
+
+ObservedFact/control result must reference
+valid hash-verified evidence.
+
+If evidence commit fails:
+
+CONTROL EVALUATION MUST NOT BECOME PASS.
+
+If evidence integrity verification fails:
+
+CONTROL EVALUATION MUST NOT become PASS.
+
+============================================================
+PROVENANCE
+============================================================
+
+Every control result must be traceable to:
+
+organizationId
+awsAccountId / safe account reference
+scanRunId
+scanCheckAttemptId where applicable
+checkId
+checkVersion
+evaluatorVersion
+observedAt
+provider
+API operation
+coverage
+dataQuality
+evidenceId
+evidenceHash
+canonicalizationVersion
+
+and the relevant AWS/provider source revision.
+
+Do not expose secrets.
+
+============================================================
+RESOURCE IDENTITY
+============================================================
+
+Root MFA is account-scoped.
+
+Use a stable deterministic resource key.
+
+It must not depend on:
+
+request ordering
+random UUID
+timestamp
+worker ID
+
+The same AWS account must resolve to the same logical
+resource identity.
+
+Do not store secret credentials as resource identifiers.
+
+============================================================
+SCAN INTEGRATION
+============================================================
+
+Connect the control to the EXISTING ScanRun lifecycle.
+
+Expected:
+
+ScanRun
+→ check selected
+→ worker claims job
+→ AWS adapter executes
+→ observation generated
+→ Evidence committed
+→ evidence verified
+→ evaluator executes
+→ result persisted
+→ event/audit emitted
+
+Do not create a second queue.
+
+Do not create a second worker.
+
+Do not bypass M-03.
+
+============================================================
+IDEMPOTENCY
+============================================================
+
+Repeated execution of the same logical scan/check must not
+produce contradictory duplicate truth.
+
+Respect existing:
+
+scan idempotency
+job idempotency
+attempt identity
+evidence identity
+event model
+
+If the same scan/check is replayed:
+
+history may contain attempts,
+
+but business truth must remain deterministic.
+
+============================================================
+PARTIAL / FAILURE BEHAVIOR
+============================================================
+
+Implement explicit behavior for:
+
+PASS
+FAIL
+permission denied
+timeout
+AWS throttling
+AWS transient failure
+AWS schema drift
+malformed provider response
+evidence write failure
+evidence integrity failure
+worker interruption
+scan cancellation
+
+Rules:
+
+401/403-like provider authorization errors:
+
+NO RETRY unless the existing provider contract explicitly
+classifies a specific transient authorization path.
+
+Transient provider failure:
+
+bounded retry using existing retry policy.
+
+Schema drift:
+
+ERROR / degraded evidence.
+
+Do not retry indefinitely.
+
+Do not convert partial data into PASS.
+
+============================================================
+FRESHNESS / COVERAGE
+============================================================
+
+Store:
+
+observedAt
+coverage
+dataQuality
+freshness metadata
+
+For this first control:
+
+account-level observation must explicitly indicate what
+was actually inspected.
+
+No silent assumption that:
+
+"one API response = complete coverage"
+
+unless the AWS API contract proves that.
+
+============================================================
+CONTROL RESULT
+============================================================
+
+Persist the minimal durable control result required by the
+existing architecture.
+
+It must contain at minimum:
+
+organization scope
+control/check identity
+status
+resource key
+observedAt
+evidence reference
+evidence hash
+check version
+evaluator version
+coverage
+data quality
+message
+error code when applicable
+scan reference
+provenance
+
+Do NOT build the complete scoring engine here.
+
+Do NOT build readiness scoring.
+
+Do NOT build denominator logic.
+
+Do NOT build cross-control scoring.
+
+Those belong to MASTER PROMPT 09.
+
+============================================================
+FINDING BOUNDARY
+============================================================
+
+If the current PRD/M-06 schema requires a finding projection
+for this vertical slice:
+
+create ONLY the minimal finding needed for this control.
+
+Finding must be derived from the deterministic control result.
+
+Never create a finding independently of evidence.
+
+Never create a finding from UI input.
+
+Never allow UI/manual input to overwrite scan truth.
+
+Do not implement remediation lifecycle here.
+
+Only provide the remediation reference/template required
+by the control contract.
+
+============================================================
+SOC 2 MAPPING
+============================================================
+
+Map the first AWS control to the appropriate SOC 2 control
+only when the mapping has an authoritative/approved source
+in the repository/PRD.
+
+Store:
+
+framework
+control identifier
+mapping version
+mapping rationale/source
+
+Do not claim:
+
+SOC 2 compliance
+SOC 2 certification
+audit pass
+
+The output is:
+
+technical readiness evidence / control observation.
+
+============================================================
+REMEDIATION
+============================================================
+
+For FAIL:
+
+provide a deterministic remediation template.
+
+Example conceptual structure:
+
+title
+reason
+affected resource
+required action
+verification condition
+source
+version
+
+Do not automatically mutate AWS.
+
+This first vertical slice is READ-ONLY.
+
+Never:
+
+enable MFA
+change IAM
+change password policy
+modify S3
+modify security groups
+
+============================================================
+AUDIT
+============================================================
+
+Use the existing audit system.
+
+Record:
+
+control execution
+provider request outcome
+evidence commit
+evaluation
+permission failure
+integrity failure
+scan linkage
+
+Do not record:
+
+secret access key
+secret token
+session token
+raw credential
+private key
+
+Use correlation IDs.
+
+============================================================
+EVENTS
+============================================================
+
+Use existing event architecture.
+
+Emit the appropriate existing/versioned event(s).
+
+At minimum the architecture must allow tracing:
+
+scan
+→ check attempt
+→ evidence
+→ evaluation
+
+Do not create a new event bus.
+
+Do not duplicate existing event semantics.
+
+============================================================
+TENANT ISOLATION
+============================================================
+
+All operations must remain organization-scoped.
+
+Test:
+
+Organization A
+AWS account A
+
+Organization B
+AWS account B
+
+Organization B must not:
+
+read A's result
+read A's evidence
+read A's scan
+read A's resource
+read A's finding
+invoke A's control result endpoint
+
+No IDOR.
+
+Never trust organizationId from arbitrary client input.
+
+Use existing authorization/scoped repository.
+
+============================================================
+RBAC
+============================================================
+
+Reuse existing RBAC.
+
+Test:
+
+OWNER
+ADMIN
+MEMBER
+unauthenticated
+wrong organization
+
+Do not create a second permission system.
+
+Follow existing route authorization conventions.
+
+============================================================
+API SURFACE
+============================================================
+
+Expose only the minimum API required for the vertical slice.
+
+Possible capabilities:
+
+trigger first control/scan
+inspect scan/check status
+inspect control result
+inspect evidence metadata
+verify evidence
+
+Reuse existing route conventions.
+
+Do not build dashboard UI.
+
+Do not build report UI.
+
+Do not build public trust page.
+
+Do not build auditor portal.
+
+============================================================
+HTTP RESPONSE CONTRACT
+============================================================
+
+Use existing versioned error envelope.
+
+Correctly distinguish:
+
+401
+403
+404
+409
+422
+429
+500/503
+
+according to existing application semantics.
+
+Never leak:
+
+AWS credentials
+provider raw secrets
+stack traces
+internal database details
+
+============================================================
+TEST MATRIX
+============================================================
+
+Implement deterministic tests for:
+
+1. Root MFA PASS
+2. Root MFA FAIL
+3. permission denied
+4. timeout
+5. transient AWS failure
+6. throttling
+7. malformed AWS response
+8. schema drift
+9. evidence commit failure
+10. evidence integrity failure
+11. duplicate execution
+12. tenant isolation
+13. RBAC
+14. audit
+15. provenance
+16. remediation reference
+17. stable resource key
+18. evaluator determinism
+
+============================================================
+REAL AWS TEST
+============================================================
+
+If AWS sandbox/disposable account credentials are actually
+available:
+
+RUN THE REAL CONTROL.
+
+Do not merely mock it.
+
+Capture proof:
+
+AWS account identity
+provider operation
+permission verification
+observedAt
+control result
+evidence ID
+evidence hash
+scan ID
+check version
+evaluator version
+
+Redact all credentials.
+
+If live AWS credentials are NOT available:
+
+DO NOT CLAIM LIVE_VERIFIED.
+
+Run:
+
+contract tests
+fixture tests
+integration tests
+
+and mark:
+
+LIVE_VERIFICATION_REQUIRED
+
+Do not fabricate a screenshot,
+account ID,
+PASS result,
+FAIL result,
+or live proof.
+
+============================================================
+GATE B CANDIDATE
+============================================================
+
+Gate B candidate requires:
+
+[ ] Gate A prerequisites still valid
+[ ] AWS provider contract verified
+[ ] real/disposable AWS account available
+[ ] minimum permission verified
+[ ] real AWS observation collected
+[ ] Evidence Vault accepted observation
+[ ] evidence hash verified
+[ ] evaluator deterministic
+[ ] control result persisted
+[ ] provenance complete
+[ ] tenant isolation passed
+[ ] RBAC passed
+[ ] audit passed
+[ ] error paths passed
+[ ] retry behavior passed
+[ ] schema validation passed
+[ ] no secrets leaked
+[ ] real end-to-end scan path passed
+[ ] proof record generated
+[ ] capability registry updated
+[ ] completion dossier updated
+
+ONLY THEN:
+
+capability status may become:
+
+LIVE_VERIFIED
+
+If AWS sandbox is unavailable:
+
+status remains:
+
+VERIFICATION_REQUIRED
+
+Do not use demo data to promote capability to LIVE_VERIFIED.
+
+============================================================
+DEFINITION OF DONE
+============================================================
+
+Prompt 08 is COMPLETE when:
+
+1. One PRD-approved AWS control exists.
+2. It is registered in the existing check registry.
+3. Its provider contract is documented.
+4. Its minimum permission is documented.
+5. Its evaluator is deterministic.
+6. Its AWS observation is real when credentials exist.
+7. Observation is stored as immutable evidence.
+8. Evidence is hash-verified.
+9. Control result references the evidence.
+10. Provenance is complete.
+11. Scan orchestration executes the control.
+12. Idempotency works.
+13. Retry/error behavior works.
+14. Tenant isolation works.
+15. RBAC works.
+16. Audit/event trace works.
+17. HTTP contract works.
+18. Negative tests pass.
+19. Build/typecheck passes.
+20. Full relevant test suite passes.
+21. Runtime smoke passes.
+22. Capability registry is truthful.
+23. Completion dossier contains proof.
+24. Gate B candidate status is honest.
+
+============================================================
+CREDIT EFFICIENCY
+============================================================
+
+VERY IMPORTANT:
+
+OPTIMIZE FOR LOW CREDIT CONSUMPTION.
+
+DO NOT:
+
+- rebuild existing modules
+- reinstall dependencies unless actually missing
+- upgrade packages unnecessarily
+- rewrite Prisma schema unnecessarily
+- recreate AWS adapter
+- recreate queue
+- recreate Evidence Vault
+- create frontend
+- create dashboard
+- create eight checks
+- create scoring engine
+- create remediation engine
+- create reports
+- create notifications
+- create AI
+- create billing
+
+Use existing code.
+
+Inspect first.
+
+Patch only actual gaps.
+
+Run targeted tests first.
+
+Only run the full suite after targeted tests pass.
+
+Avoid repeated expensive exploratory actions.
+
+Do not produce large unnecessary documentation.
+
+============================================================
+TECHNICAL STACK
+============================================================
+
+Preserve existing architecture.
+
+Required baseline:
+
+Node.js 24
+TypeScript
+PostgreSQL
+Prisma
+AWS SDK v3
+
+Do not replace these.
+
+Use the existing HTTP framework and repository conventions.
+
+============================================================
+FINAL VERIFICATION
+============================================================
+
+Before declaring completion:
+
+run:
+
+typecheck
+build
+targeted control tests
+M-03 integration tests
+M-05 evidence tests
+relevant security tests
+full test suite
+Prisma migration status
+runtime smoke
+
+Verify:
+
+/health/live
+/health/ready
+
+and protected control/evidence route.
+
+============================================================
+DOCUMENTATION
+============================================================
+
+Update only:
+
+DOC/decision-log.md
+DOC/capability-registry.md
+DOC/completion/M-06/
+provider/check dossier
+relevant runbook
+
+Do not rewrite PRD.
+
+Record:
+
+check ID
+version
+provider
+permission
+API revision
+fixture
+sandbox
+result
+proof
+limitations
+expiry/reverification
+reviewer
+
+============================================================
+FINAL RESPONSE FORMAT
+============================================================
+
+Return:
+
+PROMPT 08 STATUS:
+COMPLETE / PARTIAL / BLOCKED
+
+Then:
+
+1. Control implemented
+2. AWS provider operation
+3. Permission verified
+4. Scan integration
+5. Evidence integration
+6. Deterministic evaluation
+7. PASS/FAIL/ERROR behavior
+8. Provenance
+9. Tenant/RBAC
+10. Audit/event
+11. Tests
+12. Build/typecheck
+13. Runtime smoke
+14. Real AWS verification
+15. Gate B status
+16. Remaining limitations
+
+CRITICAL:
+
+Never claim:
+
+LIVE_VERIFIED
+
+unless an actual disposable/sandbox AWS account was used
+and the complete proof chain exists.
+
+Never use demo data as live proof.
+
+Never claim SOC 2 compliance/certification.
+
+Never create optimistic score.
+
+Never hide missing evidence.
+
+Never turn permission/error/stale/incomplete data into PASS.
+
+============================================================
+STOP CONDITION
+============================================================
+
+Once the FIRST REAL AWS CONTROL vertical slice is genuinely
+complete and verified:
+
+STOP.
+
+DO NOT START MASTER PROMPT 09.
+
+MASTER PROMPT 09 will build the broader:
+
+Decision & Control System
+findings
+control status
+scoring
+freshness
+coverage
+deterministic projection rebuild.
+
+END MASTER PROMPT 08.

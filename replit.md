@@ -98,3 +98,18 @@ adapter is versioned and content-addressed for integration tests and drills;
 live S3 encryption/versioning/Object Lock remains
 `VERIFICATION_REQUIRED` until provider credentials and Object Lock are
 verified. See `DOC/completion/M-05/README.md`.
+
+### Imported project setup verification
+
+The Replit workflow uses Node.js 24, PostgreSQL, and `npm run dev`. The
+development database was reachable and all 13 checked-in Prisma migrations were
+applied with `npx prisma migrate deploy`. Verification completed with:
+
+- `npm test` — 55 tests passed
+- `npm run typecheck` — passed
+- `npm run build` — passed
+- `/health/live` — HTTP 200
+- `/health/ready` — HTTP 200 with PostgreSQL connectivity verified
+- `/dashboard` — HTTP 200; unauthenticated state is explicit and protected
+- authenticated `/dashboard/summary` — real tenant-backed data with
+  `NOT_EVALUATED` / `NOT_CALCULATED` when no scan exists
