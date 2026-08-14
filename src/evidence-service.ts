@@ -246,8 +246,7 @@ export class EvidenceService {
   }
 
   async retrieve(context: EvidenceReadContext, evidenceId: string): Promise<{ metadata: Prisma.EvidenceGetPayload<object>; bytes: Uint8Array }> {
-    const metadata = await this.getMetadata(context, evidenceId);
-    if (metadata.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Evidence is not eligible because integrity verification failed.");
+    const metadata = await this.verify(context, evidenceId);
     const bytes = await this.storage.get(metadata.storageRef, metadata.storageVersionId ?? undefined);
     if (!bytes) {
       await this.markIntegrityFailure(context.auth, metadata, context.correlationId, "object_missing");
@@ -379,10 +378,14 @@ export class EvidenceService {
     const organizationId = this.requireCustomerOrganization(context.auth);
     requireEvidencePermission(context.auth, organizationId, "evidence.delete");
     const evidence = await this.scopedEvidence(evidenceId, organizationId, context, "evidence.delete");
-    if (evidence.retentionUntil > now) throw new AppError("RETENTION_CONFLICT", "Evidence retention has not expired.");
-    if (evidence.legalHoldStatus === "ACTIVE") throw new AppError("LEGAL_HOLD_CONFLICT", "Legal hold blocks evidence deletion.");
-    if (evidence.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Integrity failure blocks evidence deletion.");
-    await this.storage.delete(evidence.storageRef, evidence.storageVersionId ?? "", now);
+    // Retention deletion is only safe after a fresh integrity check. A missing
+    // or corrupted object must become an integrity failure, never a successful
+    // metadata deletion.
+    const verifiedEvidence = await this.verify(context, evidenceId);
+    if (verifiedEvidence.retentionUntil > now) throw new AppError("RETENTION_CONFLICT", "Evidence retention has not expired.");
+    if (verifiedEvidence.legalHoldStatus === "ACTIVE") throw new AppError("LEGAL_HOLD_CONFLICT", "Legal hold blocks evidence deletion.");
+    if (verifiedEvidence.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Integrity failure blocks evidence deletion.");
+    await this.storage.delete(verifiedEvidence.storageRef, verifiedEvidence.storageVersionId ?? "", now);
     await this.db.$transaction(async (tx) => {
       await tx.evidenceLegalHold.deleteMany({ where: { evidenceId, organizationId } });
       await tx.observedFact.deleteMany({ where: { evidenceId, organizationId } });
@@ -396,7 +399,7 @@ export class EvidenceService {
         targetId: evidenceId,
         result: "SUCCESS",
         correlationId: context.correlationId,
-        metadata: { contentHash: evidence.contentHash },
+        metadata: { contentHash: verifiedEvidence.contentHash },
       });
     });
   }
@@ -404,7 +407,7 @@ export class EvidenceService {
   async assertEligible(evidenceId: string, organizationId: string): Promise<Prisma.EvidenceGetPayload<object>> {
     const evidence = await this.db.evidence.findFirst({ where: { id: evidenceId, organizationId } });
     if (!evidence) throw new AppError("NOT_FOUND", "Evidence not found.");
-    if (evidence.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Integrity-failed evidence is not eligible.");
+    if (evidence.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "integrity-failed evidence is not eligible.");
     return evidence;
   }
 

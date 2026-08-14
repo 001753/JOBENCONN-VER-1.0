@@ -74,3 +74,27 @@ protected `/security/*` routes. The findings permissions are
 `findings.read`, `findings.run`, `findings.acknowledge`, and `findings.resolve`;
 the existing role matrix grants read-only findings access to MEMBER/VIEWER and
 mutation access to OWNER/ADMIN.
+
+### M-05 Evidence Vault
+
+Evidence is committed through the protected `/evidence` API and is scoped to
+the authenticated active organization. The available operations are:
+
+- `POST /evidence` — redact, validate, canonicalize, hash, store, and persist
+  evidence metadata plus optional `ObservedFact` records.
+- `GET /evidence/:id` — read tenant-scoped metadata only.
+- `GET /evidence/:id/content` — retrieve canonical bytes after a fresh
+  integrity verification.
+- `POST /evidence/:id/verify` — recompute the SHA-256 and publish integrity
+  success/failure proof.
+- `POST /evidence/:id/legal-hold` and
+  `POST /evidence/legal-holds/:holdId/release` — manage retention holds.
+- `POST /evidence/:id/supersede` — create an immutable successor.
+- `DELETE /evidence/:id` — only eligible after retention expiry, no legal hold,
+  and successful integrity verification.
+
+All mutations require the existing CSRF token. The local deterministic storage
+adapter is versioned and content-addressed for integration tests and drills;
+live S3 encryption/versioning/Object Lock remains
+`VERIFICATION_REQUIRED` until provider credentials and Object Lock are
+verified. See `DOC/completion/M-05/README.md`.

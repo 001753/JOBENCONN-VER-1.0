@@ -1,6 +1,8 @@
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
+import { type EvidenceType } from "@prisma/client";
 import type { AppConfig } from "./config.js";
+import type { Permission } from "./authorization.js";
 import { checkDatabaseConnection, getPrismaClient } from "./database.js";
 import { AppError, errorResponse } from "./errors.js";
 import { DevIdentityProvider, ClerkIdentityProvider } from "./identity-provider.js";
@@ -10,6 +12,7 @@ import { SessionManager, SESSION_COOKIE, parseCookies } from "./session.js";
 import { FixedWindowRateLimiter } from "./rate-limit.js";
 import { AwsService, customerAwsAuthorization } from "./aws-service.js";
 import { SecurityAnalysisService, customerSecurityAuthorization } from "./security-service.js";
+import { EvidenceService } from "./evidence-service.js";
 
 const MAX_REQUEST_BYTES = 1_048_576;
 const authRateLimiter = new FixedWindowRateLimiter(10, 60_000);
@@ -60,7 +63,37 @@ function requiredString(value: unknown, field: string): string {
   return value.trim();
 }
 
-async function route(request: IncomingMessage, response: ServerResponse, config: AppConfig, correlationId: string): Promise<void> {
+function requiredDate(value: unknown, field: string): Date {
+  const date = new Date(requiredString(value, field));
+  if (Number.isNaN(date.getTime())) throw new AppError("VALIDATION_ERROR", `${field} must be a valid timestamp.`);
+  return date;
+}
+
+function evidenceType(value: unknown): EvidenceType {
+  if (value === "PROVIDER_RESPONSE" || value === "INVENTORY_SNAPSHOT" || value === "SCAN_CHECK" || value === "CONFIGURATION") return value;
+  throw new AppError("VALIDATION_ERROR", "type must be a supported evidence type.");
+}
+
+function optionalString(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || !value.trim()) throw new AppError("VALIDATION_ERROR", `${field} must be a non-empty string when provided.`);
+  return value.trim();
+}
+
+function requiredUuid(value: string, field: string): string {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new AppError("NOT_FOUND", `${field} not found.`);
+  }
+  return value;
+}
+
+async function route(
+  request: IncomingMessage,
+  response: ServerResponse,
+  config: AppConfig,
+  correlationId: string,
+  evidence: EvidenceService,
+): Promise<void> {
   const method = request.method ?? "GET";
   const path = new URL(request.url ?? "/", "http://joben.local").pathname;
 
@@ -189,6 +222,128 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
       context: organization.context,
     });
   };
+
+  const evidenceAuthorization = async (permission: Extract<Permission, `evidence.${string}`>) => {
+    const organizationId = actor.session.activeOrganizationId;
+    if (!organizationId) throw new AppError("ORG_NOT_FOUND", "An active organization is required.");
+    const organization = await identity.authorizeOrganization(actor, organizationId, permission, correlationId);
+    return {
+      kind: "customer" as const,
+      actorUserId: actor.userId,
+      organizationId: organization.organizationId,
+      role: organization.role,
+    };
+  };
+
+  if (path === "/evidence" && method === "POST") {
+    await requireCsrf();
+    const body = await readJson(request);
+    const auth = await evidenceAuthorization("evidence.commit");
+    const observedFacts = body.observedFacts === undefined
+      ? undefined
+      : Array.isArray(body.observedFacts)
+        ? body.observedFacts.map((fact, index) => {
+          if (!fact || typeof fact !== "object" || Array.isArray(fact)) throw new AppError("VALIDATION_ERROR", `observedFacts[${index}] must be an object.`);
+          const record = fact as Record<string, unknown>;
+          return {
+            provider: requiredString(record.provider, `observedFacts[${index}].provider`),
+            resourceKey: requiredString(record.resourceKey, `observedFacts[${index}].resourceKey`),
+            observedAt: requiredDate(record.observedAt, `observedFacts[${index}].observedAt`),
+            payloadSchema: requiredString(record.payloadSchema, `observedFacts[${index}].payloadSchema`),
+            extractedFields: record.extractedFields,
+          };
+        })
+        : (() => { throw new AppError("VALIDATION_ERROR", "observedFacts must be an array."); })();
+    const sourceIntegrationId = optionalString(body.sourceIntegrationId, "sourceIntegrationId");
+    const scanRunId = optionalString(body.scanRunId, "scanRunId");
+    const scanCheckOutcomeId = optionalString(body.scanCheckOutcomeId, "scanCheckOutcomeId");
+    const providerRequestId = optionalString(body.providerRequestId, "providerRequestId");
+    const sourceEndpoint = optionalString(body.sourceEndpoint, "sourceEndpoint");
+    const committed = await evidence.commit(auth, {
+      type: evidenceType(body.type),
+      provider: requiredString(body.provider, "provider"),
+      schemaVersion: requiredString(body.schemaVersion, "schemaVersion"),
+      collectedAt: requiredDate(body.collectedAt, "collectedAt"),
+      retentionUntil: requiredDate(body.retentionUntil, "retentionUntil"),
+      payload: body.payload,
+      correlationId,
+      ...(sourceIntegrationId !== undefined ? { sourceIntegrationId } : {}),
+      ...(scanRunId !== undefined ? { scanRunId } : {}),
+      ...(scanCheckOutcomeId !== undefined ? { scanCheckOutcomeId } : {}),
+      ...(providerRequestId !== undefined ? { providerRequestId } : {}),
+      ...(sourceEndpoint !== undefined ? { sourceEndpoint } : {}),
+      ...(observedFacts ? { observedFacts } : {}),
+    });
+    sendJson(response, 201, { evidence: committed });
+    return;
+  }
+
+  const legalHoldReleaseMatch = /^\/evidence\/legal-holds\/([^/]+)\/release$/.exec(path);
+  if (legalHoldReleaseMatch && method === "POST") {
+    await requireCsrf();
+    const holdId = legalHoldReleaseMatch[1];
+    if (!holdId) throw new AppError("NOT_FOUND", "Route not found.");
+    const auth = await evidenceAuthorization("evidence.legal_hold");
+    sendJson(response, 200, { legalHold: await evidence.releaseLegalHold({ auth, correlationId }, requiredUuid(holdId, "Legal hold")) });
+    return;
+  }
+
+  const evidenceMatch = /^\/evidence\/([^/]+)(?:\/(content|verify|legal-hold|supersede))?$/.exec(path);
+  if (evidenceMatch) {
+    const evidenceId = evidenceMatch[1];
+    const action = evidenceMatch[2];
+    if (!evidenceId) throw new AppError("NOT_FOUND", "Route not found.");
+    const validEvidenceId = requiredUuid(evidenceId, "Evidence");
+    if (method === "GET" && !action) {
+      const auth = await evidenceAuthorization("evidence.read");
+      sendJson(response, 200, { evidence: await evidence.getMetadata({ auth, correlationId }, validEvidenceId) });
+      return;
+    }
+    if (method === "GET" && action === "content") {
+      const auth = await evidenceAuthorization("evidence.read");
+      const retrieved = await evidence.retrieve({ auth, correlationId }, validEvidenceId);
+      sendJson(response, 200, {
+        evidence: retrieved.metadata,
+        canonicalPayload: Buffer.from(retrieved.bytes).toString("utf8"),
+      });
+      return;
+    }
+    if (method === "POST" && action === "verify") {
+      await requireCsrf();
+      const auth = await evidenceAuthorization("evidence.verify");
+      sendJson(response, 200, { evidence: await evidence.verify({ auth, correlationId }, validEvidenceId) });
+      return;
+    }
+    if (method === "POST" && action === "legal-hold") {
+      await requireCsrf();
+      const body = await readJson(request);
+      const auth = await evidenceAuthorization("evidence.legal_hold");
+      sendJson(response, 201, { legalHold: await evidence.createLegalHold({ auth, correlationId }, validEvidenceId, requiredString(body.reason, "reason")) });
+      return;
+    }
+    if (method === "POST" && action === "supersede") {
+      await requireCsrf();
+      const body = await readJson(request);
+      const auth = await evidenceAuthorization("evidence.supersede");
+      sendJson(response, 201, { evidence: await evidence.supersede({ auth, correlationId }, validEvidenceId, {
+        type: evidenceType(body.type),
+        provider: requiredString(body.provider, "provider"),
+        schemaVersion: requiredString(body.schemaVersion, "schemaVersion"),
+        collectedAt: requiredDate(body.collectedAt, "collectedAt"),
+        retentionUntil: requiredDate(body.retentionUntil, "retentionUntil"),
+        payload: body.payload,
+        correlationId,
+      }) });
+      return;
+    }
+    if (method === "DELETE" && !action) {
+      await requireCsrf();
+      const auth = await evidenceAuthorization("evidence.delete");
+      await evidence.deleteExpired({ auth, correlationId }, validEvidenceId);
+      sendJson(response, 204, null);
+      return;
+    }
+  }
 
   if (path === "/aws/connections" && method === "GET") {
     const auth = await awsAuthorization();
@@ -473,6 +628,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
 }
 
 export function createAppServer(config: AppConfig, logger: StructuredLogger): Server {
+  const evidence = new EvidenceService(getPrismaClient());
   return createHttpServer((request, response) => {
     applySecurityHeaders(response);
     const correlationIdHeader = request.headers["x-correlation-id"] ?? request.headers["x-request-id"];
@@ -485,7 +641,7 @@ export function createAppServer(config: AppConfig, logger: StructuredLogger): Se
         if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
           throw new AppError("VALIDATION_ERROR", "Request body exceeds the 1 MiB limit.");
         }
-          await route(request, response, config, correlationId);
+          await route(request, response, config, correlationId, evidence);
         logger.info("http.request.completed", {
           method: request.method,
           path: request.url,

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { timingSafeEqual } from "node:crypto";
 import { AppError } from "./errors.js";
+import { sha256Hex } from "./evidence-canonical.js";
 
 export interface StorageCapabilities {
   readonly encryption: "SSE-S3";
@@ -44,6 +45,9 @@ export class InMemoryEvidenceObjectStorage implements EvidenceObjectStorage {
   private readonly objects = new Map<string, Map<string, StoredVersion>>();
 
   async put(input: { key: string; bytes: Uint8Array; contentHash: string; retentionUntil: Date }): Promise<StoredObject> {
+    if (sha256Hex(input.bytes) !== input.contentHash) {
+      throw new AppError("INTEGRITY_ERROR", "Object content hash does not match supplied bytes.");
+    }
     const versions = this.objects.get(input.key) ?? new Map<string, StoredVersion>();
     for (const existing of versions.values()) {
       const sameLength = existing.bytes.byteLength === input.bytes.byteLength;

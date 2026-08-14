@@ -587,7 +587,7 @@ model Evidence {
   sourceIntegration        AwsConnection?           @relation(fields: [sourceIntegrationId], references: [id], onDelete: Restrict)
   scanRun                  SecurityScanRun?         @relation(fields: [scanRunId], references: [id], onDelete: Restrict)
   scanCheckOutcome         ScanCheckOutcome?        @relation(fields: [scanCheckOutcomeId], references: [id], onDelete: SetNull)
-  supersedesEvidence       Evidence?               @relation("EvidenceSupersession", fields: [supersedesEvidenceId], references: [id], onDelete: Restrict)
+  supersedesEvidence       Evidence?               @relation("EvidenceSupersession", fields: [supersedesEvidenceId], references: [id], onDelete: SetNull)
   supersededBy             Evidence[]              @relation("EvidenceSupersession")
   observedFacts            ObservedFact[]
   legalHolds               EvidenceLegalHold[]

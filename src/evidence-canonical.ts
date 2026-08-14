@@ -13,7 +13,9 @@ function canonicalizeValue(value: unknown): unknown {
   if (typeof value === "object") {
     const record = value as Record<string, unknown>;
     return Object.fromEntries(
-      Object.keys(record).sort((left, right) => left.localeCompare(right)).map((key) => [key, canonicalizeValue(record[key])]),
+      // JCS-1 uses deterministic code-unit ordering. localeCompare is
+      // locale-dependent and can produce different bytes across runtimes.
+      Object.keys(record).sort((left, right) => left < right ? -1 : left > right ? 1 : 0).map((key) => [key, canonicalizeValue(record[key])]),
     );
   }
   throw new AppError("SCHEMA_ERROR", "schema_error: unsupported JSON value");

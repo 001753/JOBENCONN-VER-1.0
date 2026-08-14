@@ -1,0 +1,844 @@
+MASTER PROMPT 07A
+JOBEN ENTERPRISE
+M-05 EVIDENCE VAULT & INTEGRITY — FINAL COMPLETION
+
+============================================================
+MISSION
+============================================================
+
+CONTINUE THE EXISTING JOBEN ENTERPRISE REPOSITORY.
+
+IMPORTANT:
+
+MASTER PROMPT 07 HAS ALREADY BEEN EXECUTED PARTIALLY.
+
+DO NOT BUILD M-05 FROM ZERO.
+
+DO NOT REWRITE EXISTING M-01 THROUGH M-06 COMPONENTS.
+
+DO NOT REPLACE EXISTING ARCHITECTURE.
+
+THIS IS A GAP-CLOSING AND FINAL-COMPLETION PROMPT.
+
+OBJECTIVE:
+
+MAKE M-05 EVIDENCE VAULT & INTEGRITY
+100% COMPLETED, REAL WORKING, TESTED,
+PERSISTED, TENANT-SAFE, AND PRODUCTION-READY
+WITHIN THE CURRENT PRD SCOPE.
+
+============================================================
+CURRENT KNOWN STATE
+============================================================
+
+The previous execution already created/modified:
+
+- Prisma Evidence schema
+- ObservedFact-related schema
+- evidence-redaction.ts
+- evidence-canonical.ts
+- evidence-schema.ts
+- evidence-storage.ts
+- evidence-service.ts
+- authorization changes
+- error handling changes
+- M-05 migration file
+- evidence.test.ts
+
+TypeScript layer already passed typecheck.
+
+DO NOT REIMPLEMENT THESE MODULES.
+
+FIRST AUDIT THEIR ACTUAL CURRENT STATE.
+
+Only patch genuine gaps.
+
+============================================================
+CRITICAL RULE
+============================================================
+
+Do NOT mark M-05 COMPLETE merely because:
+
+- TypeScript compiles
+- unit tests pass
+- files exist
+- Prisma schema exists
+
+M-05 is COMPLETE only after:
+
+DATABASE
++
+SERVICE
++
+STORAGE
++
+SECURITY
++
+INTEGRITY
++
+EVENTS
++
+AUDIT
++
+M-03 INTEGRATION
++
+TESTS
++
+PROOF
+
+are all verified.
+
+============================================================
+STEP 1 — AUDIT CURRENT IMPLEMENTATION
+============================================================
+
+Before changing code, inspect:
+
+schema.prisma
+migrations
+evidence-service.ts
+evidence-storage.ts
+evidence-redaction.ts
+evidence-canonical.ts
+evidence-schema.ts
+authorization.ts
+audit implementation
+event implementation
+scan orchestration
+scan worker
+security service
+server routes
+test configuration
+capability registry
+existing documentation
+
+Create an internal gap matrix:
+
+REQUIREMENT
+IMPLEMENTED
+TESTED
+INTEGRATED
+PERSISTED
+STATUS
+
+Do not create duplicate modules.
+
+============================================================
+STEP 2 — DATABASE MIGRATION
+============================================================
+
+Apply the existing migration chain safely.
+
+DO NOT reset the database.
+
+DO NOT use destructive reset.
+
+Run:
+
+prisma generate
+prisma validate
+prisma migrate status
+prisma migrate deploy
+
+If migration fails:
+
+diagnose the actual failure.
+
+Do not bypass migration.
+
+Verify:
+
+User
+Organization
+membership/RBAC
+AWS integration
+SecurityScanRun
+ScanCheckOutcome
+ScanEvent
+Evidence
+ObservedFact
+
+all exist and are compatible.
+
+Verify indexes and foreign keys.
+
+============================================================
+STEP 3 — EVIDENCE PERSISTENCE
+============================================================
+
+Verify a real PostgreSQL lifecycle:
+
+create Evidence
+→ persist
+→ read metadata
+→ retrieve storage object
+→ verify hash
+→ return VALID.
+
+No mock-only completion.
+
+The integration test MUST use PostgreSQL.
+
+============================================================
+STEP 4 — REDACTION FINAL GATE
+============================================================
+
+Use nested deterministic secret-canary data.
+
+Include:
+
+authorization
+accessKeyId
+secretAccessKey
+token
+privateKey
+webhookSecret
+nested credentials
+array-contained credentials
+
+Execute:
+
+provider payload
+→ redaction
+→ canonicalization
+→ persistence.
+
+Verify none of the secrets appear in:
+
+Evidence payload
+database metadata
+logs
+audit
+errors
+events
+
+If any secret leaks:
+
+M-05 FAIL.
+
+============================================================
+STEP 5 — CANONICALIZATION FINAL GATE
+============================================================
+
+Verify that logically identical JSON payloads with different
+object key ordering produce:
+
+same canonical representation
+same SHA-256.
+
+Verify deterministic handling of:
+
+nested objects
+arrays
+null
+numbers
+unicode
+empty structures.
+
+Verify canonicalizationVersion is persisted.
+
+Do not silently change the algorithm.
+
+============================================================
+STEP 6 — HASH FINAL GATE
+============================================================
+
+Verify:
+
+stored contentHash
+==
+SHA-256(canonical bytes)
+
+Test tampered content.
+
+Expected:
+
+INTEGRITY_FAILED.
+
+Never silently update the stored hash.
+
+============================================================
+STEP 7 — IMMUTABILITY FINAL GATE
+============================================================
+
+After Evidence is committed:
+
+attempt payload update
+attempt hash update
+attempt storage overwrite
+attempt ordinary delete
+
+Expected:
+
+DENIED.
+
+No normal API path may mutate committed evidence.
+
+============================================================
+STEP 8 — SUPERCESSION FINAL GATE
+============================================================
+
+Correction MUST NOT mutate original evidence.
+
+Verify:
+
+Evidence A
+→ immutable
+
+Evidence B
+→ new evidence
+
+B.supersedesEvidenceId = A.id
+
+A remains unchanged.
+
+Both hashes remain independently verifiable.
+
+Audit the supersession.
+
+============================================================
+STEP 9 — RETENTION FINAL GATE
+============================================================
+
+Verify:
+
+active retention
+→ deletion blocked
+
+expired retention
+→ deletion eligible
+
+expired + legal hold
+→ deletion blocked
+
+Do not expose unsafe force-delete.
+
+Retention evaluation must be deterministic.
+
+============================================================
+STEP 10 — LEGAL HOLD FINAL GATE
+============================================================
+
+Verify:
+
+authorized actor can create legal hold
+authorized actor can release legal hold
+
+unauthorized actor denied.
+
+Every action must create audit evidence.
+
+Legal hold must override retention deletion.
+
+============================================================
+STEP 11 — INTEGRITY VERIFICATION
+============================================================
+
+Implement/verify real integrity verification.
+
+Lifecycle:
+
+Evidence committed
+→ object read
+→ canonical bytes obtained
+→ SHA-256 recomputed
+→ compare stored hash.
+
+Expected:
+
+MATCH
+→ VALID
+
+MISMATCH
+→ INTEGRITY_FAILED
+
+MISSING OBJECT
+→ INTEGRITY_FAILED
+
+Do not repair automatically.
+
+============================================================
+STEP 12 — INTEGRITY DRILL
+============================================================
+
+Perform deterministic drill:
+
+1. commit evidence
+2. verify VALID
+3. corrupt test storage object
+4. verify again
+5. expect INTEGRITY_FAILED
+6. generate audit
+7. emit EvidenceIntegrityFailed
+8. ensure invalid evidence cannot be treated as valid downstream
+
+This is mandatory.
+
+============================================================
+STEP 13 — EVENT FINAL GATE
+============================================================
+
+Verify:
+
+EvidenceCommitted
+EvidenceIntegrityFailed
+
+Events must include:
+
+eventId
+eventType
+eventVersion
+occurredAt
+actor
+organizationId
+entityId
+entityVersion
+correlationId
+dataRef
+
+Never put raw evidence payload in event data.
+
+Verify duplicate event handling is safe.
+
+============================================================
+STEP 14 — AUDIT FINAL GATE
+============================================================
+
+Verify audit events for:
+
+commit
+read
+verify
+integrity failure
+supersede
+retention eligibility
+legal hold create
+legal hold release
+delete when legitimately permitted
+access denied
+
+Audit must never contain secrets or raw evidence.
+
+============================================================
+STEP 15 — TENANT ISOLATION
+============================================================
+
+Create at least two organizations.
+
+Organization A evidence:
+
+MUST NOT be readable by Organization B.
+
+Test:
+
+metadata access
+payload access
+verify
+legal hold
+supersession
+retention
+storage reference
+
+Cross-tenant access MUST fail.
+
+Do not trust organizationId supplied by client.
+
+Use authenticated organization context.
+
+============================================================
+STEP 16 — RBAC
+============================================================
+
+Verify existing RBAC semantics.
+
+At minimum:
+
+OWNER/authorized operator:
+allowed according to policy.
+
+MEMBER:
+only explicitly permitted read operations.
+
+Unauthorized mutation:
+DENIED.
+
+Do not introduce a new authorization architecture.
+
+Reuse existing authorization service.
+
+============================================================
+STEP 17 — M-03 INTEGRATION
+============================================================
+
+Verify the real execution relationship:
+
+ScanRun
+→ ScanCheckAttempt / ScanCheckOutcome
+→ Evidence
+→ evidence reference
+
+Evidence commit failure MUST NOT become
+a successful security check.
+
+Evidence integrity failure MUST remain visible.
+
+Do not modify M-03 state semantics unnecessarily.
+
+Do not implement M-06 findings/scoring here.
+
+============================================================
+STEP 18 — OBJECT STORAGE
+============================================================
+
+Reuse the storage adapter created by Prompt 07.
+
+Verify:
+
+write
+read
+exists
+version/reference
+hash verification
+retention boundary.
+
+If test adapter exists:
+
+use it for deterministic integration tests.
+
+If live AWS S3 credentials/object-lock are unavailable:
+
+DO NOT CLAIM LIVE WORM.
+
+Set:
+
+TEST_VERIFIED
+
+and:
+
+LIVE_WORM = VERIFICATION_REQUIRED
+
+This is correct behavior.
+
+Do not fake external verification.
+
+============================================================
+STEP 19 — ENCRYPTION
+============================================================
+
+Verify the existing storage abstraction supports encrypted storage
+where the provider supports it.
+
+Do not create a second encryption architecture.
+
+Verify sensitive payload is not stored in plaintext
+outside the intended storage boundary.
+
+Do not persist application secrets.
+
+============================================================
+STEP 20 — FAILURE SEMANTICS
+============================================================
+
+Explicitly test:
+
+schema failure
+redaction failure
+storage unavailable
+hash mismatch
+object missing
+duplicate commit
+concurrent commit
+unauthorized read
+cross-tenant read
+retention conflict
+legal hold conflict
+
+No failure may produce a false VALID evidence state.
+
+============================================================
+STEP 21 — CONCURRENCY
+============================================================
+
+Execute concurrent identical evidence commits.
+
+Expected:
+
+same logical evidence/hash remains consistent.
+
+No:
+
+race corruption
+double overwrite
+conflicting metadata
+invalid evidence state.
+
+Use PostgreSQL constraints/transactions where appropriate.
+
+============================================================
+STEP 22 — FULL TEST GATE
+============================================================
+
+Run:
+
+typecheck
+build
+unit tests
+integration tests
+security tests
+Prisma validation
+migration status
+M-05 evidence tests
+
+Then run the complete existing test suite.
+
+DO NOT stop after only M-05 tests.
+
+If existing tests fail:
+
+determine whether:
+
+1. caused by M-05
+2. pre-existing
+3. environment/setup
+
+Fix failures caused by M-05.
+
+Do not hide failures.
+
+============================================================
+STEP 23 — RUNTIME SMOKE TEST
+============================================================
+
+Restart the workflow/service.
+
+Verify:
+
+/health/live
+/health/ready
+
+Then verify protected Evidence operations.
+
+Expected:
+
+health = 200
+unauthorized protected access = 401/403
+authorized tenant-scoped access = success
+
+Do not expose sensitive debug information.
+
+============================================================
+STEP 24 — MIGRATION VERIFICATION
+============================================================
+
+Confirm:
+
+all migrations applied
+database schema matches Prisma schema
+no pending M-05 migration
+no destructive reset
+no manual undocumented DB changes.
+
+============================================================
+STEP 25 — CAPABILITY REGISTRY
+============================================================
+
+Update capability registry only AFTER verification.
+
+For each M-05 capability record:
+
+- capability
+- requirement
+- implementation
+- test
+- evidence
+- status
+- reviewer
+- verification timestamp
+- expiry/reverification where applicable
+
+Do not mark LIVE_VERIFIED when it is only TEST_VERIFIED.
+
+============================================================
+STEP 26 — COMPLETION DOSSIER
+============================================================
+
+Create/update:
+
+M-05 completion dossier.
+
+It must contain:
+
+Architecture
+Evidence lifecycle
+Schema
+Redaction
+Canonicalization
+Hashing
+Storage
+Encryption
+Retention
+Legal hold
+Immutability
+Supersession
+Integrity verification
+Events
+Audit
+RBAC
+Tenant isolation
+M-03 integration
+Failure semantics
+Test results
+Runtime proof
+Known external verification limits
+
+============================================================
+STEP 27 — DEFINITION OF DONE
+============================================================
+
+M-05 can only be declared COMPLETE when ALL are true:
+
+[ ] migration applied
+[ ] PostgreSQL integration passes
+[ ] Evidence persists
+[ ] ObservedFact persists
+[ ] redaction verified
+[ ] secret canary passes
+[ ] schema validation passes
+[ ] canonicalization deterministic
+[ ] canonicalizationVersion stored
+[ ] SHA-256 verified
+[ ] content hash authoritative
+[ ] storage abstraction working
+[ ] encryption boundary verified
+[ ] immutable write verified
+[ ] overwrite denied
+[ ] unsafe delete denied
+[ ] supersession verified
+[ ] retention verified
+[ ] legal hold verified
+[ ] integrity verification verified
+[ ] corruption drill passes
+[ ] EvidenceCommitted verified
+[ ] EvidenceIntegrityFailed verified
+[ ] audit verified
+[ ] tenant isolation verified
+[ ] RBAC verified
+[ ] concurrent commit verified
+[ ] M-03 integration verified
+[ ] failure semantics verified
+[ ] full test suite passes
+[ ] build passes
+[ ] runtime smoke passes
+[ ] capability registry updated
+[ ] completion dossier updated
+
+============================================================
+CREDIT-EFFICIENCY RULE
+============================================================
+
+THIS IS A FINALIZATION PROMPT.
+
+DO NOT:
+
+- rebuild M-05
+- rebuild M-03
+- rebuild AWS integration
+- redesign Prisma
+- add frontend
+- add dashboard
+- add Finding
+- add scoring
+- add report
+- add AI
+- add remediation
+- add billing
+- add notification platform
+
+Reuse existing code.
+
+Patch only verified gaps.
+
+Install dependencies only if missing.
+
+Run migrations once.
+
+Run tests strategically:
+
+1. targeted M-05 tests
+2. integration tests
+3. full suite
+4. runtime smoke
+
+Do not repeatedly reinstall dependencies.
+
+Do not repeatedly regenerate unrelated code.
+
+============================================================
+STOP CONDITION
+============================================================
+
+If M-05 passes every gate:
+
+STOP.
+
+Do not start Master Prompt 08.
+
+Master Prompt 08 is:
+
+FIRST REAL AWS CONTROLS
++
+DETERMINISTIC EVALUATION
++
+GATE B.
+
+============================================================
+FINAL REPORT
+============================================================
+
+Return exactly:
+
+M-05 FINAL STATUS:
+COMPLETE / PARTIAL / BLOCKED
+
+Then:
+
+A. Gap ditemukan
+B. Gap yang diperbaiki
+C. Migration status
+D. Evidence persistence proof
+E. Redaction proof
+F. Canonicalization proof
+G. SHA-256 proof
+H. Immutability proof
+I. Supersession proof
+J. Retention proof
+K. Legal hold proof
+L. Integrity drill proof
+M. Event proof
+N. Audit proof
+O. Tenant/RBAC proof
+P. M-03 integration proof
+Q. Full test result
+R. Build/typecheck result
+S. Runtime smoke result
+T. AWS live verification status
+U. Capability registry
+V. Completion dossier
+
+IMPORTANT:
+
+DO NOT CLAIM 100% COMPLETE IF ANY REQUIRED CHECKBOX
+IS UNVERIFIED.
+
+If something cannot be live-verified because credentials or
+external infrastructure are unavailable, clearly mark:
+
+VERIFICATION_REQUIRED
+
+instead of fabricating success.
+
+REAL WORK ONLY.
+NO MOCK SUCCESS.
+NO FAKE COMPLETION.
+NO REBUILD FROM ZERO.
+NO SCOPE CREEP.

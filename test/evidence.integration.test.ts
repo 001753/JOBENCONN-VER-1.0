@@ -131,6 +131,40 @@ test("M-05 PostgreSQL evidence vault, tenant, lifecycle, and integrity gates", {
     await db.user.delete({ where: { id: member.id } });
   });
 
+  await t.test("scan evidence failure cannot become a successful check", async () => {
+    const failedOutcome = await db.scanCheckOutcome.create({
+      data: {
+        organizationId: organization.id,
+        scanRunId: scan.id,
+        checkId: "M05-COMMIT-FAILURE",
+        checkVersion: "1",
+        resourceIdentity: "resource:m05-failure",
+        status: "RUNNING",
+        startedAt: collectedAt,
+        finishedAt: collectedAt,
+        durationMs: 0,
+        correlationId: scan.correlationId,
+      },
+    });
+    await assert.rejects(
+      service.commitForScan(auth, {
+        type: "SCAN_CHECK",
+        provider: "test",
+        schemaVersion: "test.v1",
+        scanRunId: scan.id,
+        scanCheckOutcomeId: failedOutcome.id,
+        collectedAt,
+        retentionUntil,
+        payload: {},
+        correlationId: "m05-commit-failure",
+      }),
+      (error: unknown) => error instanceof AppError && error.code === "SCHEMA_ERROR",
+    );
+    const persistedFailure = await db.scanCheckOutcome.findUniqueOrThrow({ where: { id: failedOutcome.id } });
+    assert.equal(persistedFailure.status, "FAILED");
+    assert.equal(persistedFailure.errorClass, "EVIDENCE_COMMIT_FAILED");
+  });
+
   await t.test("verification detects corruption and blocks downstream eligibility", async () => {
     const evidence = await db.evidence.findFirstOrThrow({ where: { organizationId: organization.id } });
     storage.corrupt(evidence.storageRef, evidence.storageVersionId ?? "", Buffer.from("corrupted-m05-object"));

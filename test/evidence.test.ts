@@ -45,11 +45,14 @@ test("M-05 provider schema failure is deterministic and not silently accepted", 
 test("M-05 test storage is versioned, content-addressed, and rejects overwrite", async () => {
   const storage = new InMemoryEvidenceObjectStorage();
   const retentionUntil = new Date("2030-01-01T00:00:00.000Z");
-  const first = await storage.put({ key: "org/scan_check/hash", bytes: Buffer.from("canonical"), contentHash: "hash", retentionUntil });
-  const same = await storage.put({ key: "org/scan_check/hash", bytes: Buffer.from("canonical"), contentHash: "hash", retentionUntil });
+  const bytes = Buffer.from("canonical");
+  const contentHash = sha256Hex(bytes);
+  const first = await storage.put({ key: "org/scan_check/hash", bytes, contentHash, retentionUntil });
+  const same = await storage.put({ key: "org/scan_check/hash", bytes, contentHash, retentionUntil });
   assert.equal(same.versionId, first.versionId);
+  const differentBytes = Buffer.from("different");
   await assert.rejects(
-    storage.put({ key: "org/scan_check/hash", bytes: Buffer.from("different"), contentHash: "hash", retentionUntil }),
+    storage.put({ key: "org/scan_check/hash", bytes: differentBytes, contentHash: sha256Hex(differentBytes), retentionUntil }),
     (error: unknown) => error instanceof AppError && error.code === "CONFLICT",
   );
   assert.equal(storage.capabilities.versioning, true);
