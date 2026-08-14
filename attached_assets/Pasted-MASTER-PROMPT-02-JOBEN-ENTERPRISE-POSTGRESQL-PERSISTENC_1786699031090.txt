@@ -1,0 +1,1373 @@
+MASTER PROMPT 02 — JOBEN ENTERPRISE
+POSTGRESQL PERSISTENCE & DATA FOUNDATION
+
+MODE:
+PRECISION-FIRST
+CREDIT-EFFICIENT
+REAL-WORK
+FULL-POWER
+PRODUCTION-GRADE
+
+RUNTIME:
+Node.js 24.x
+
+DATABASE:
+PostgreSQL
+
+ORM / MIGRATION:
+Prisma
+
+LANGUAGE:
+TypeScript
+
+STATUS:
+CONTINUE FROM MASTER PROMPT 01
+
+============================================================
+0. MISSION
+============================================================
+
+Lanjutkan implementasi JOBEN dari hasil VERIFIED Master Prompt 01.
+
+JANGAN membuat project baru.
+JANGAN rebuild repository.
+JANGAN menghapus foundation yang sudah lulus.
+JANGAN mengulang pekerjaan Prompt 01 kecuali diperlukan untuk
+memperbaiki failure yang ditemukan dan masih berada dalam scope.
+
+Master Prompt 02 bertugas membangun:
+
+POSTGRESQL PERSISTENCE FOUNDATION
++
+PRISMA MIGRATION FOUNDATION
++
+CORE DATA MODEL BASELINE
++
+SCOPED REPOSITORY FOUNDATION
++
+TRANSACTION / CONCURRENCY FOUNDATION
++
+AUDIT DATA FOUNDATION
++
+IDEMPOTENCY DATA FOUNDATION
++
+BACKUP / RESTORE SMOKE FOUNDATION
+
+Master Prompt 02 BELUM membangun:
+
+- Clerk authentication flow
+- signup/signin UI
+- session lifecycle
+- MFA workflow
+- invite UI
+- role management UI
+- ownership transfer workflow
+- AWS integration
+- scan engine
+- queue worker
+- evidence engine
+- compliance checks
+- dashboard
+- report
+- billing
+- AI
+- auditor portal
+
+Fitur tersebut akan dikerjakan pada Master Prompt berikutnya.
+
+============================================================
+1. SOURCE OF TRUTH
+============================================================
+
+Gunakan:
+
+- PRD JOBEN Enterprise
+- JOBEN Build Roadmap
+- dependency DAG
+- hasil aktual Master Prompt 01
+- architecture baseline
+- environment contract
+- capability registry
+- decision/RFC records
+
+Roadmap menetapkan:
+
+P0
+WP-02 Tenant/auth/audit
+Dependency:
+WP-01
+
+dan database foundation mencakup:
+
+- User
+- Organization
+- membership/invitation
+- audit
+- capability
+- idempotency
+- organization context
+- scoped repository
+- optimistic concurrency/version
+- append-only audit
+- backup/restore smoke
+
+Namun karena execution plan JOBEN memecah WP-02
+menjadi beberapa Master Prompt untuk presisi tinggi:
+
+MASTER PROMPT 02:
+DATA/PERSISTENCE
+
+MASTER PROMPT 03:
+TENANT/AUTH/RBAC
+
+MASTER PROMPT 04:
+SECURITY/OPERATIONS
+
+Jangan melompati boundary tersebut.
+
+============================================================
+2. TECHNOLOGY CONTRACT
+============================================================
+
+WAJIB:
+
+Node.js 24.x
+PostgreSQL
+Prisma
+TypeScript
+
+Node.js 24 adalah runtime target JOBEN.
+
+Jangan downgrade ke Node 22 atau Node 20.
+
+Jika dependency atau hosting belum mendukung Node 24,
+JANGAN diam-diam mengganti runtime.
+
+Catat:
+
+NODE_24_COMPATIBILITY_BLOCKER
+
+dan dokumentasikan failure yang sebenarnya.
+
+Jangan membuat workaround yang menyamarkan runtime mismatch.
+
+Package manager harus mengikuti repository yang sudah dipilih
+pada Master Prompt 01.
+
+Jangan mengganti package manager tanpa alasan teknis.
+
+============================================================
+3. FIRST ACTION — INSPECT CURRENT STATE
+============================================================
+
+SEBELUM coding:
+
+Inspect hasil Master Prompt 01.
+
+Periksa:
+
+- package.json
+- lockfile
+- Node version
+- Prisma version
+- prisma directory jika sudah ada
+- schema.prisma jika sudah ada
+- migration directory
+- database config
+- DATABASE_URL contract
+- environment validation
+- repository structure
+- application lifecycle
+- existing error boundary
+- existing logging
+- existing test setup
+- existing architecture documentation
+- existing capability registry
+- git diff/status
+
+JANGAN mengulang inspection yang tidak diperlukan.
+
+Tujuan inspection:
+
+MENENTUKAN APA YANG SUDAH ADA
+vs
+APA YANG BENAR-BENAR BELUM ADA.
+
+============================================================
+4. DATABASE PRINCIPLES
+============================================================
+
+PostgreSQL adalah source of truth durable untuk
+application state.
+
+Prisma digunakan sebagai:
+
+- schema definition
+- migration layer
+- typed database access
+
+Database harus:
+
+- deterministic
+- migration-first
+- transaction-safe
+- tenant-aware
+- auditable
+- recoverable
+
+JANGAN menjadikan:
+
+- frontend
+- cache
+- Redis
+- seed
+- fixture
+- in-memory object
+
+sebagai durable source of truth.
+
+Redis dan queue belum menjadi bagian Prompt 02.
+
+============================================================
+5. DATABASE CONNECTION
+============================================================
+
+Implementasikan centralized PostgreSQL connection strategy.
+
+Requirement:
+
+- DATABASE_URL berasal dari environment
+- tidak hardcoded
+- tidak masuk git
+- tidak masuk log
+- connection lifecycle jelas
+- development/test/production separation
+- Prisma client tidak dibuat secara tidak terkendali
+  pada setiap request
+
+Untuk Next.js development,
+hindari database connection explosion akibat hot reload.
+
+Gunakan pattern yang sesuai dengan Node.js 24 + Next.js
+architecture yang sudah dipilih pada Prompt 01.
+
+Jangan membuat global singleton yang tidak diperlukan
+untuk production.
+
+============================================================
+6. PRISMA SCHEMA BASELINE
+============================================================
+
+Implementasikan schema yang diperlukan untuk
+PERSISTENCE FOUNDATION.
+
+Minimum entity baseline:
+
+1. User
+2. Organization
+3. Membership
+4. Invitation
+5. AuditEvent
+6. CapabilityRecord
+7. IdempotencyRecord
+
+Jika PRD membutuhkan field tambahan untuk correctness,
+implementasikan field tersebut.
+
+Jangan membuat schema future secara berlebihan.
+
+Jangan membuat:
+
+ScanRun
+Finding
+ObservedFact
+Evidence
+Report
+BillingTransaction
+AiUsageLog
+
+pada Prompt 02 kecuali benar-benar diperlukan
+oleh migration dependency dan sudah ditentukan PRD.
+
+Jika belum diperlukan:
+
+DEFER TO FUTURE MASTER PROMPT.
+
+============================================================
+7. USER MODEL
+============================================================
+
+User adalah application identity reference.
+
+Jangan menjadikan User sebagai tenant.
+
+Satu User dapat memiliki membership ke lebih dari satu
+Organization.
+
+Minimal persistence concern:
+
+- stable internal ID
+- external identity reference bila diperlukan
+- createdAt
+- updatedAt
+- lifecycle status bila diperlukan
+
+External identity provider details tidak boleh
+menjadi domain identity source yang tidak terkontrol.
+
+Clerk synchronization akan dikerjakan Prompt 03.
+
+Prompt 02 hanya menyiapkan persistence boundary.
+
+============================================================
+8. ORGANIZATION MODEL
+============================================================
+
+Organization adalah primary tenant boundary.
+
+Minimal baseline:
+
+- id
+- stable identifier
+- name
+- slug/unique identifier jika dibutuhkan
+- status
+- createdAt
+- updatedAt
+
+Global-ready metadata yang memang diwajibkan PRD
+boleh disiapkan jika termasuk persistence foundation,
+misalnya:
+
+- homeRegion
+- dataResidencyPolicy
+- locale
+- timezone
+- currency
+- tax profile
+
+Namun jangan membuat business logic region/provider
+pada Prompt 02.
+
+Data region hanya persistence/configuration state.
+
+Policy enforcement akan mengikuti phase berikutnya.
+
+============================================================
+9. MEMBERSHIP MODEL
+============================================================
+
+Buat persistence model untuk hubungan:
+
+User
+↕
+Membership
+↕
+Organization
+
+Membership harus mendukung:
+
+- unique user + organization
+- role reference
+- status/lifecycle
+- version/concurrency field
+- createdAt
+- updatedAt
+
+Role matrix belum menjadi full authorization engine.
+
+Prompt 03 akan mengimplementasikan:
+
+- role semantics
+- authorization
+- session actor
+- permission checks
+- role transition
+- ownership transfer
+
+Prompt 02 hanya memastikan persistence mampu mendukungnya
+secara benar.
+
+============================================================
+10. INVITATION MODEL
+============================================================
+
+Siapkan persistence model untuk invitation.
+
+Minimal:
+
+- organization scope
+- invited identity/email reference sesuai PRD
+- role
+- token/reference yang aman
+- status
+- expiry
+- createdAt
+- acceptedAt/revokedAt bila relevan
+- version/concurrency
+
+SECURITY RULE:
+
+Jangan menyimpan invitation secret/token plaintext
+jika PRD mengharuskan hashed reference.
+
+Invitation lifecycle:
+
+PENDING
+→ ACCEPTED
+→ REVOKED
+→ EXPIRED
+
+Replay harus dapat dideteksi.
+
+Prompt 03 akan mengimplementasikan workflow.
+
+============================================================
+11. AUDIT EVENT PERSISTENCE
+============================================================
+
+Implementasikan append-oriented audit persistence.
+
+Minimum fields:
+
+- id
+- actor
+- organization scope
+- action/event type
+- purpose
+- target/resource reference
+- result
+- reason
+- correlation ID
+- timestamp UTC
+- metadata yang sudah direda
+- schema/version
+
+Audit harus append-oriented.
+
+Jangan menyediakan UPDATE/DELETE application path
+untuk mengubah audit history secara normal.
+
+Audit bukan sekadar application log.
+
+Audit adalah durable business/security record.
+
+Roadmap mensyaratkan audit memiliki actor,
+purpose, scope, result, correlation ID, timestamp UTC,
+dan reason. :contentReference[oaicite:1]{index=1}
+
+============================================================
+12. AUDIT DATA CLASSIFICATION
+============================================================
+
+Audit metadata harus mengikuti classification policy.
+
+Jangan memasukkan:
+
+- password
+- session secret
+- access token
+- refresh token
+- AWS credential
+- raw API secret
+- private key
+- raw sensitive evidence
+
+ke dalam AuditEvent.
+
+Gunakan references dan redacted metadata.
+
+Jika event membutuhkan sensitive reference:
+
+STORE REFERENCE
+NOT RAW SECRET.
+
+============================================================
+13. CAPABILITY RECORD
+============================================================
+
+Implementasikan persistence foundation untuk
+CapabilityRecord.
+
+Minimum concept:
+
+- capability ID
+- module
+- version
+- state
+- source of truth
+- verification status
+- proof reference
+- dependency reference
+- reviewer
+- timestamps
+- expiry/reverification metadata bila diperlukan
+
+Allowed states mengikuti PRD:
+
+planned
+not_implemented
+verification_required
+degraded
+live_verified
+deprecated
+
+Jangan memberikan live_verified secara otomatis.
+
+Prompt 02 hanya membangun storage.
+
+Verification logic berada di layer berikutnya.
+
+============================================================
+14. IDEMPOTENCY RECORD
+============================================================
+
+Implementasikan persistence foundation untuk idempotency.
+
+Minimum concept:
+
+- id/key
+- organization scope bila relevan
+- actor/context bila relevan
+- operation name
+- request fingerprint
+- status
+- result reference
+- createdAt
+- expiresAt
+- version/concurrency
+
+Tujuan:
+
+mencegah mutation duplicate.
+
+Contoh future:
+
+- invite acceptance
+- organization mutation
+- webhook
+- scan initiation
+- notification
+- billing
+
+Prompt 02 hanya membuat reusable persistence mechanism.
+
+Jangan mengimplementasikan future workflows.
+
+============================================================
+15. ORGANIZATION SCOPE
+============================================================
+
+Ini adalah requirement CRITICAL.
+
+Setiap customer-owned persistence entity
+harus mempunyai organization scope
+secara eksplisit atau melalui relationship
+yang dapat diverifikasi secara deterministik.
+
+Jangan percaya:
+
+organizationId dari request body
+sebagai bukti authorization.
+
+Request context akan divalidasi
+pada application/service layer.
+
+Repository layer harus membantu mencegah
+accidental unscoped access.
+
+============================================================
+16. SCOPED REPOSITORY FOUNDATION
+============================================================
+
+Buat repository/data-access abstraction yang
+mendukung tenant-scoped query.
+
+Contoh konsep:
+
+OrganizationContext
+
+dan
+
+ScopedRepository<T>
+
+atau pattern equivalent
+yang sesuai architecture existing.
+
+Goal:
+
+customer-facing service TIDAK boleh secara normal
+melakukan query global terhadap customer data
+tanpa explicit system-level authority.
+
+Jangan membuat abstraction terlalu kompleks.
+
+Gunakan typed repository/service boundary
+yang sederhana dan dapat dipahami.
+
+ANTI-PATTERN:
+
+db.organization.findMany()
+
+langsung dari route customer.
+
+PREFERRED:
+
+organizationRepository.list(ctx)
+
+dengan organization scope berasal dari
+validated actor context.
+
+Actor context akan dikerjakan Prompt 03,
+tetapi repository contract harus siap menerimanya.
+
+============================================================
+17. SYSTEM VS CUSTOMER ACCESS
+============================================================
+
+Bedakan dua kategori:
+
+CUSTOMER-SCOPED ACCESS
+dan
+SYSTEM-LEVEL ACCESS
+
+Repository contract harus membuat perbedaan ini jelas.
+
+System jobs masa depan boleh membutuhkan
+cross-organization operations,
+tetapi harus memiliki explicit system context.
+
+Jangan membuat:
+
+organizationId = undefined
+berarti "semua organisasi".
+
+Jangan membuat default query:
+
+findMany()
+
+untuk customer path.
+
+Default customer behavior:
+
+DENY / SCOPED.
+
+============================================================
+18. TRANSACTION BOUNDARY
+============================================================
+
+Tetapkan transaction boundary.
+
+Gunakan PostgreSQL transaction
+untuk mutation yang membutuhkan atomicity.
+
+Contoh future:
+
+membership mutation
++
+audit event
+
+atau
+
+invitation acceptance
++
+membership creation
++
+audit event
+
+Prompt 02 harus menyediakan transaction mechanism
+yang dapat digunakan service layer.
+
+Jangan memasukkan business workflow Prompt 03.
+
+============================================================
+19. CONCURRENCY / VERSIONING
+============================================================
+
+Tambahkan optimistic concurrency/versioning
+untuk mutation penting.
+
+Minimal foundation:
+
+version integer atau equivalent.
+
+Tujuan:
+
+mencegah lost update.
+
+Jika mutation dilakukan terhadap row
+yang sudah berubah:
+
+RETURN CONFLICT.
+
+Jangan silently overwrite.
+
+Repository/service contract harus mendukung
+conditional update.
+
+============================================================
+20. DATABASE CONSTRAINTS
+============================================================
+
+Gunakan database-level constraints
+untuk invariant penting.
+
+Contoh:
+
+- unique User identity reference
+- unique Organization slug
+- unique User + Organization membership
+- unique active invitation/reference sesuai policy
+- valid status values jika sesuai schema
+- non-null required fields
+- foreign key integrity
+- timestamps
+
+Jangan hanya mengandalkan validation frontend.
+
+Database harus menjadi second line of defense.
+
+============================================================
+21. INDEX STRATEGY
+============================================================
+
+Buat index berdasarkan actual access pattern.
+
+Minimal pertimbangkan:
+
+Organization lookup
+Membership lookup
+Invitation lookup
+Audit organization + timestamp
+Capability lookup
+Idempotency key lookup
+
+Jangan membuat index pada semua kolom.
+
+Setiap index harus memiliki alasan.
+
+============================================================
+22. MIGRATION STRATEGY
+============================================================
+
+Gunakan Prisma migrations.
+
+Requirements:
+
+- migration reproducible
+- migration versioned
+- no manual undocumented schema mutation
+- development migration
+- production deployment strategy
+- backward compatibility awareness
+
+Jangan menggunakan:
+
+prisma db push
+
+sebagai production migration strategy.
+
+Migration harus dapat dijalankan
+dari database kosong.
+
+Test:
+
+DATABASE EMPTY
+→ APPLY ALL MIGRATIONS
+→ DATABASE VALID
+
+Kemudian:
+
+EXISTING DATABASE
+→ APPLY NEXT MIGRATION
+→ VALID
+
+============================================================
+23. MIGRATION SAFETY
+============================================================
+
+Untuk destructive changes:
+
+JANGAN langsung:
+
+DROP
+RENAME destructively
+DELETE production data
+
+tanpa migration strategy.
+
+Gunakan expand/contract pattern jika diperlukan.
+
+Dokumentasikan rollback limitation.
+
+Jika migration tidak benar-benar reversible,
+katakan secara eksplisit.
+
+Jangan mengklaim "rollback supported"
+jika hanya migration down command yang teoritis.
+
+============================================================
+24. SEED DATA
+============================================================
+
+Seed hanya untuk DEVELOPMENT/TEST.
+
+Seed tidak boleh:
+
+- menjadi production truth;
+- menciptakan fake live capability;
+- menciptakan fake compliance;
+- membuat organization seolah-olah customer nyata.
+
+Jika seed diperlukan:
+
+beri marker:
+
+ENVIRONMENT = TEST/DEV
+
+Production harus memiliki behavior berbeda.
+
+============================================================
+25. TEST DATABASE
+============================================================
+
+Siapkan deterministic database test strategy.
+
+Minimum test:
+
+1. migration from empty database
+2. migration from current schema
+3. User creation
+4. Organization creation
+5. Membership uniqueness
+6. Invitation lifecycle persistence
+7. Audit append
+8. Capability persistence
+9. Idempotency persistence
+10. foreign-key integrity
+11. organization scoped repository
+12. optimistic concurrency conflict
+13. transaction rollback
+14. duplicate mutation protection
+
+============================================================
+26. TENANT ISOLATION TEST FOUNDATION
+============================================================
+
+Prompt 02 BELUM mengimplementasikan full auth.
+
+Tetapi buat test foundation yang dapat membuktikan:
+
+Organization A
+≠
+Organization B
+
+Contoh:
+
+Org A:
+resource A
+
+Org B:
+resource B
+
+Scoped repository dengan context A:
+
+MUST NOT RETURN B.
+
+Jika organization context tidak tersedia:
+
+MUST DENY.
+
+Jangan menggunakan frontend filtering
+untuk membuktikan isolation.
+
+Isolation harus terjadi pada server/data access layer.
+
+============================================================
+27. AUDIT ATOMICITY
+============================================================
+
+Untuk mutation yang menggunakan audit:
+
+Jika business mutation berhasil:
+audit harus berhasil.
+
+Jika audit diwajibkan dan audit gagal:
+transaction harus rollback.
+
+Jangan menghasilkan:
+
+business state = changed
+audit = missing
+
+untuk event yang diwajibkan audited.
+
+Implementasikan reusable transaction pattern.
+
+============================================================
+28. BACKUP FOUNDATION
+============================================================
+
+Roadmap P0 membutuhkan backup/restore foundation.
+
+Implementasikan sesuai environment yang tersedia.
+
+Minimum:
+
+- backup strategy documented
+- retention baseline documented
+- backup manifest
+- checksum/integrity verification
+- isolated restore smoke test
+
+Jangan mengklaim disaster recovery production-grade
+jika infrastructure belum mendukung.
+
+Jika provider/hosting belum menyediakan kemampuan
+backup otomatis:
+
+DOCUMENT BLOCKER.
+
+Jangan membuat fake backup.
+
+============================================================
+29. RESTORE SMOKE TEST
+============================================================
+
+Buat restore test environment terisolasi.
+
+Flow:
+
+BACKUP
+↓
+RESTORE
+↓
+VERIFY DATABASE
+↓
+VERIFY MIGRATION VERSION
+↓
+VERIFY TENANT COUNT
+↓
+VERIFY CORE REFERENCES
+↓
+PASS/FAIL
+
+Restore test tidak boleh menyentuh
+production database secara destructive.
+
+Evidence hasil restore harus terdokumentasi.
+
+============================================================
+30. DATA CLASSIFICATION
+============================================================
+
+Tetapkan classification untuk entity P0.
+
+Minimum categories:
+
+public
+internal
+confidential
+restricted
+
+Credential references dan security-sensitive
+audit data default:
+
+restricted
+
+User/customer business data sesuai classification policy.
+
+Dokumentasikan classification pada
+data classification artifact.
+
+============================================================
+31. UTC / TIME
+============================================================
+
+Semua persisted timestamps:
+
+UTC.
+
+Gunakan timezone-aware strategy
+yang sesuai PostgreSQL/Prisma.
+
+Jangan menyimpan local timezone
+sebagai replacement timestamp.
+
+Organization timezone adalah metadata terpisah.
+
+Test:
+
+- createdAt UTC
+- updatedAt UTC
+- audit timestamp UTC
+- invitation expiry correctness
+
+============================================================
+32. DATABASE PERFORMANCE BASELINE
+============================================================
+
+Jangan melakukan premature optimization.
+
+Namun pastikan:
+
+- organization lookup indexed
+- membership lookup indexed
+- audit timeline indexed
+- idempotency lookup indexed
+
+Jika baseline query terlalu lambat:
+measure dahulu.
+
+Jangan mengklaim performance target
+tanpa benchmark.
+
+============================================================
+33. SECURITY
+============================================================
+
+Pastikan:
+
+DATABASE_URL tidak masuk:
+
+- source code
+- git
+- logs
+- error response
+- audit event
+- test snapshot
+
+Prisma/database errors harus disanitasi
+sebelum dikirim ke client.
+
+Jangan expose:
+
+- SQL
+- schema internals
+- connection string
+- database host credential
+
+============================================================
+34. NODE.JS 24 COMPATIBILITY
+============================================================
+
+Verify:
+
+node --version
+
+harus menunjukkan:
+
+24.x
+
+Verify:
+
+npm/pnpm/yarn version
+sesuai repository.
+
+Pastikan:
+
+- Prisma compatible dengan Node 24
+- test runner compatible
+- build compatible
+- TypeScript compatible
+
+Jika dependency tertentu tidak compatible:
+
+DO NOT downgrade Node.
+
+Catat exact blocker.
+
+Cari upgrade dependency yang compatible
+hanya jika perubahan tersebut kecil,
+aman, dan berada dalam scope Prompt 02.
+
+============================================================
+35. PRISMA CLIENT SAFETY
+============================================================
+
+Pastikan Prisma Client:
+
+- typed
+- centralized
+- lifecycle-safe
+- testable
+- tidak membuat connection leak
+
+Development hot reload tidak boleh menghasilkan
+uncontrolled Prisma client instances.
+
+Production harus menggunakan lifecycle
+yang sesuai Node.js 24 deployment model.
+
+============================================================
+36. DOCUMENTATION
+============================================================
+
+Update/create:
+
+DOC/DATABASE-FOUNDATION.md
+DOC/DATA-MODEL.md
+DOC/TENANT-SCOPE.md
+DOC/MIGRATION-RUNBOOK.md
+DOC/BACKUP-RESTORE.md
+
+Jika nama/struktur DOC sudah ditetapkan
+oleh Prompt 01:
+
+FOLLOW EXISTING STRUCTURE.
+
+Jangan membuat duplicate documentation.
+
+Dokumentasikan:
+
+- database architecture
+- schema rationale
+- entity relationship
+- migration procedure
+- rollback limitation
+- repository scope contract
+- transaction contract
+- concurrency strategy
+- backup strategy
+- restore procedure
+- data classification
+- known limitations
+- deferred items
+
+============================================================
+37. CAPABILITY REGISTRY
+============================================================
+
+Update CapabilityRecord:
+
+DATABASE_PERSISTENCE_FOUNDATION
+PRISMA_MIGRATION_BASELINE
+SCOPED_REPOSITORY_FOUNDATION
+AUDIT_PERSISTENCE
+IDEMPOTENCY_PERSISTENCE
+BACKUP_RESTORE_SMOKE
+
+Status boleh:
+
+IMPLEMENTED / VERIFIED
+
+hanya setelah test benar-benar lulus.
+
+Jangan set:
+
+TENANT_AUTH_LIVE
+RBAC_LIVE
+AWS_LIVE
+SCAN_LIVE
+EVIDENCE_LIVE
+
+karena belum dikerjakan.
+
+============================================================
+38. STRICT NON-GOALS
+============================================================
+
+JANGAN membangun:
+
+- Clerk integration
+- login
+- signup
+- MFA
+- session management
+- organization switch UI
+- invite workflow UI
+- RBAC engine
+- ownership transfer
+- AWS
+- Redis
+- BullMQ
+- scan worker
+- evidence
+- findings
+- controls
+- remediation
+- report
+- notification
+- billing
+- AI
+- auditor
+- trust page
+
+Jika menemukan code yang diperlukan untuk Prompt 03:
+
+DO NOT IMPLEMENT.
+
+Catat:
+
+DEFERRED TO MASTER PROMPT 03.
+
+============================================================
+39. CREDIT EFFICIENCY
+============================================================
+
+HEMAT KREDIT.
+
+Rules:
+
+1. Inspect sekali secara terarah.
+2. Reuse Prompt 01 foundation.
+3. Jangan rebuild.
+4. Jangan install dependency yang tidak diperlukan.
+5. Jangan membuat abstraction future.
+6. Jangan membuat schema future.
+7. Jangan membuat UI.
+8. Jangan menjalankan test berulang tanpa perubahan.
+9. Gunakan migration/test batch yang efisien.
+10. Stop setelah gate Prompt 02 lulus.
+
+============================================================
+40. DEFINITION OF DONE
+============================================================
+
+MASTER PROMPT 02 DONE jika:
+
+[ ] Node.js 24 verified
+[ ] PostgreSQL connection verified
+[ ] Prisma configured
+[ ] migration baseline berhasil
+[ ] empty database migration berhasil
+[ ] User persistence verified
+[ ] Organization persistence verified
+[ ] Membership persistence foundation verified
+[ ] Invitation persistence foundation verified
+[ ] Audit persistence verified
+[ ] CapabilityRecord persistence verified
+[ ] Idempotency persistence verified
+[ ] scoped repository foundation verified
+[ ] organization isolation test foundation passed
+[ ] transaction rollback tested
+[ ] optimistic concurrency tested
+[ ] database constraints tested
+[ ] required indexes present
+[ ] UTC timestamp behavior verified
+[ ] data classification documented
+[ ] backup strategy documented
+[ ] restore smoke test passed ATAU blocker nyata terdokumentasi
+[ ] database errors sanitized
+[ ] DATABASE_URL never exposed
+[ ] build passed
+[ ] tests passed
+[ ] lint/typecheck passed jika applicable
+[ ] documentation updated
+[ ] capability registry updated
+[ ] no future capability falsely marked live
+[ ] no scope creep
+
+============================================================
+41. FINAL VERIFICATION
+============================================================
+
+Run:
+
+1. node --version
+2. package manager version
+3. dependency validation
+4. Prisma schema validation
+5. Prisma migration validation
+6. clean database migration
+7. test suite
+8. lint/typecheck
+9. build
+10. application startup
+11. database connectivity
+12. repository scope tests
+13. transaction tests
+14. concurrency tests
+15. audit tests
+16. idempotency tests
+17. backup/restore smoke test
+18. git diff inspection
+
+Pastikan hasil benar-benar berasal
+dari implementation aktual.
+
+============================================================
+42. FINAL REPORT
+============================================================
+
+Setelah selesai laporkan:
+
+A. IMPLEMENTED
+Semua persistence feature yang benar-benar dibuat.
+
+B. DATABASE
+PostgreSQL + Prisma version/configuration.
+
+C. MIGRATIONS
+Migration yang dibuat dan hasil test.
+
+D. TEST EVIDENCE
+Test yang lulus/gagal.
+
+E. SECURITY
+Secret/database exposure checks.
+
+F. TENANT SCOPE
+Apa yang sudah terlindungi dan apa yang masih menunggu Prompt 03.
+
+G. BACKUP/RESTORE
+Status nyata.
+
+H. FILES CHANGED
+Daftar file dan alasan.
+
+I. DEFERRED
+Semua pekerjaan Prompt 03+.
+
+J. CAPABILITY REGISTRY
+Status aktual.
+
+K. GATE
+PASS / FAIL.
+
+Jangan menyatakan PASS jika ada critical failure.
+
+============================================================
+43. STOP CONDITION
+============================================================
+
+Setelah Master Prompt 02 memenuhi Definition of Done:
+
+STOP.
+
+Jangan:
+
+- mulai Prompt 03
+- membangun Clerk
+- membuat login
+- membuat RBAC
+- membuat AWS
+- membuat UI tambahan
+- melakukan redesign
+- melakukan speculative optimization
+
+Tunggu instruksi berikutnya.
+
+============================================================
+FINAL COMMAND
+============================================================
+
+EXECUTE MASTER PROMPT 02 NOW.
+
+CONTINUE FROM MASTER PROMPT 01.
+DO NOT REBUILD.
+NODE.JS 24.
+POSTGRESQL.
+PRISMA.
+REAL IMPLEMENTATION ONLY.
+NO FAKE DATA AS LIVE TRUTH.
+NO FUTURE FEATURE IMPLEMENTATION.
+NO SCOPE CREEP.
+TENANT-SAFE FOUNDATION.
+MIGRATION-FIRST.
+TRANSACTION-SAFE.
+AUDITABLE.
+RECOVERABLE.
+CREDIT-EFFICIENT.
+
+INSPECT → IMPLEMENT → TEST → VERIFY → DOCUMENT → STOP.
