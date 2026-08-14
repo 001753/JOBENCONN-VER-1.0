@@ -1,0 +1,1119 @@
+MASTER PROMPT 07
+JOBEN ENTERPRISE — M-05 EVIDENCE VAULT & INTEGRITY
+
+============================================================
+MISSION
+============================================================
+
+CONTINUE THE EXISTING JOBEN ENTERPRISE REPOSITORY.
+
+DO NOT BUILD FROM ZERO.
+
+MASTER PROMPTS 01–06 HAVE ALREADY BUILT THE ENGINEERING
+FOUNDATION, IDENTITY/RBAC, AWS INTEGRATION, SECURITY,
+PROVIDER ADAPTER AND SCAN ORCHESTRATION.
+
+M-03 MUST REMAIN THE SOURCE OF TRUTH FOR SCAN EXECUTION.
+
+NOW IMPLEMENT M-05:
+
+EVIDENCE VAULT & INTEGRITY.
+
+This module must provide a production-grade evidence foundation
+for future M-06 Finding/Control/Scoring, M-09 Report, M-12 Auditor,
+and M-14 AI.
+
+DO NOT IMPLEMENT THOSE FUTURE MODULES NOW.
+
+============================================================
+SOURCE OF TRUTH
+============================================================
+
+The canonical JOBEN PRD is the only product/engineering source
+of truth.
+
+Relevant M-05 scope:
+
+- immutable write
+- redaction
+- schema validation
+- canonicalization
+- versioned canonicalization
+- SHA-256 hashing
+- content-addressed storage
+- encryption
+- object versioning
+- WORM/retention lock
+- retention policy
+- legal hold
+- integrity verification
+- authorized access
+- tenant isolation
+- audit
+- provenance
+- correction through superseding record
+- evidence lifecycle
+- EvidenceCommitted event
+- EvidenceIntegrityFailed event
+
+PRD requirement:
+
+Provider response
+→ redact
+→ validate
+→ canonicalize
+→ hash
+→ immutable storage
+→ DB reference
+→ verify
+→ audit.
+
+============================================================
+TECHNOLOGY CONTRACT
+============================================================
+
+Use the existing repository architecture.
+
+Runtime:
+
+Node.js 24
+TypeScript
+PostgreSQL
+Prisma
+
+Reuse existing:
+
+- authentication
+- organization context
+- RBAC
+- authorization
+- audit
+- correlation ID
+- AWS provider adapter
+- scan orchestration
+- ScanRun
+- ScanCheckAttempt
+- existing configuration
+- existing error envelope
+- existing test infrastructure
+
+DO NOT introduce a second architecture.
+
+DO NOT replace Prisma.
+
+DO NOT replace PostgreSQL.
+
+DO NOT rewrite M-03.
+
+============================================================
+IMPORTANT CREDIT RULE
+============================================================
+
+THIS PROMPT MUST BE CREDIT-EFFICIENT.
+
+FIRST AUDIT THE EXISTING REPOSITORY.
+
+Do NOT immediately write code.
+
+Find:
+
+- existing Evidence model
+- existing scan result structures
+- existing raw evidence handling
+- object storage abstraction if any
+- AWS S3 integration if already present
+- redaction utilities
+- canonicalization utilities
+- hashing utilities
+- audit service
+- authorization service
+- organization scoping
+- migration history
+- existing event infrastructure
+- existing retention/configuration infrastructure
+
+Reuse everything valid.
+
+Only implement missing capability.
+
+DO NOT duplicate existing utilities.
+
+DO NOT add dependencies unless genuinely required.
+
+============================================================
+PHASE 1 — MODULE CONTRACT
+============================================================
+
+Create/update an M-05 module contract.
+
+It must explicitly define:
+
+Actor:
+- authenticated organization member
+- authorized operator
+- worker/service
+
+Tenant:
+- organization-scoped
+
+Data classification:
+- provider evidence
+- potentially sensitive configuration metadata
+- secrets/tokens MUST NOT survive redaction
+
+Source of truth:
+
+Object storage contains canonical evidence payload.
+
+PostgreSQL contains evidence metadata/reference/integrity state.
+
+Evidence metadata MUST NOT become a second mutable copy
+of the evidence payload.
+
+Non-goals:
+
+- finding evaluation
+- scoring
+- dashboard
+- report generation
+- AI
+- remediation
+- compliance status calculation
+
+============================================================
+PHASE 2 — EVIDENCE DATA MODEL
+============================================================
+
+Implement or complete the Prisma Evidence model according
+to the PRD.
+
+Required conceptual fields include:
+
+organizationId
+sourceIntegrationId
+scanRunId
+findingId where applicable
+controlStatusId where applicable
+type
+storageRef/storageUrl
+contentHash
+canonicalizationVersion
+schemaVersion
+providerRequestId
+sourceEndpoint
+collectedAt
+retentionUntil
+immutable
+integrityStatus
+legalHoldStatus
+supersedesEvidenceId
+createdAt
+
+Use proper enums instead of arbitrary strings where
+appropriate.
+
+Integrity status MUST distinguish at minimum:
+
+VALID
+INTEGRITY_FAILED
+
+Use an explicit legal-hold state.
+
+Do not overload unrelated status fields.
+
+Add appropriate:
+
+- indexes
+- unique constraints
+- foreign keys
+- organization scoping
+- lookup indexes for scanRunId
+- content hash lookup
+- integrity verification lookup
+- retention/expiry lookup
+
+Do not store large raw evidence payloads in PostgreSQL.
+
+PostgreSQL stores metadata/reference.
+
+============================================================
+PHASE 3 — OBSERVED FACT FOUNDATION
+============================================================
+
+Implement the PRD-compatible ObservedFact relationship.
+
+Conceptually:
+
+Evidence
+→ ObservedFact
+→ future Finding
+
+ObservedFact must preserve:
+
+evidenceId
+provider
+resourceKey
+observedAt
+payloadSchema
+extractedFields
+
+Do not implement M-06 evaluation.
+
+This is only evidence lineage.
+
+============================================================
+PHASE 4 — REDACTION
+============================================================
+
+Create/use a deterministic redaction layer.
+
+Redaction MUST happen before evidence persistence.
+
+Never persist:
+
+- AWS access keys
+- secret keys
+- bearer tokens
+- authorization headers
+- private keys
+- webhook secrets
+- session secrets
+- database credentials
+- unnecessary PII
+- nested secrets inside provider payloads
+
+Redaction must recursively handle nested objects,
+arrays and provider-specific structures.
+
+Do NOT blindly redact legitimate non-secret fields.
+
+Use deterministic markers where needed.
+
+Example concept:
+
+[REDACTED]
+
+Do not invent a fake provider payload.
+
+============================================================
+PHASE 5 — SECRET CANARY TEST
+============================================================
+
+Create deterministic secret-canary fixtures.
+
+Inject fake secrets into nested payloads:
+
+- authorization header
+- token
+- private key
+- webhook secret
+- nested secret
+- credential-like field
+
+Persist the redacted result.
+
+Verify:
+
+secret does not exist in:
+
+- object payload
+- database metadata
+- logs
+- audit payload
+- error response
+
+This is mandatory evidence-security proof.
+
+============================================================
+PHASE 6 — SCHEMA VALIDATION
+============================================================
+
+Before canonicalization:
+
+validate the redacted provider payload against
+the appropriate provider/schema version.
+
+Do not create a generic schema that silently accepts everything.
+
+Use the existing provider contract/version where available.
+
+If schema validation fails:
+
+DO NOT COMMIT VALID EVIDENCE.
+
+Return deterministic:
+
+schema_error
+
+The associated scan/check must remain visibly failed/degraded
+according to the existing M-03 semantics.
+
+Never turn schema failure into valid evidence.
+
+============================================================
+PHASE 7 — CANONICALIZATION
+============================================================
+
+Implement deterministic canonicalization.
+
+Requirements:
+
+same logical payload
+→ identical canonical bytes
+→ identical SHA-256.
+
+Canonicalization MUST be versioned.
+
+Persist:
+
+canonicalizationVersion
+
+Never change canonicalization behavior silently.
+
+If the algorithm changes:
+
+new version.
+
+Test:
+
+- object key order
+- nested object key order
+- arrays
+- numbers
+- null
+- unicode
+- whitespace
+- equivalent payload representations
+
+The canonical bytes must be deterministic.
+
+============================================================
+PHASE 8 — SHA-256
+============================================================
+
+Compute SHA-256 over the canonical bytes.
+
+Store:
+
+contentHash
+
+Hash must be calculated:
+
+1. before object write
+2. as part of commit validation
+3. during verification
+
+The storage key must be content-addressed.
+
+Conceptually:
+
+<tenant>/<evidence-type>/<sha256>
+
+Do not expose raw internal storage credentials.
+
+Do not allow arbitrary client-provided hash
+to become trusted evidence hash.
+
+Server calculates the authoritative hash.
+
+============================================================
+PHASE 9 — OBJECT STORAGE
+============================================================
+
+Use an object-storage abstraction.
+
+If AWS S3 is already available from Prompt 04/05:
+
+reuse it.
+
+Do not create another AWS client architecture.
+
+Required capabilities:
+
+- encryption
+- versioning where supported
+- immutable/object-lock-compatible retention
+- content-addressed object key
+- safe write
+- safe read
+- existence check
+- integrity verification
+
+If actual S3 Object Lock cannot be configured in the current
+environment:
+
+DO NOT FAKE WORM.
+
+Implement the abstraction and deterministic test adapter.
+
+Mark:
+
+VERIFICATION_REQUIRED
+
+for live WORM infrastructure verification.
+
+Never claim WORM is live when it has not been verified.
+
+============================================================
+PHASE 10 — IMMUTABLE COMMIT
+============================================================
+
+Evidence commit must be atomic from the application perspective.
+
+Required sequence:
+
+redact
+→ validate
+→ canonicalize
+→ hash
+→ write object
+→ verify object/reference
+→ persist metadata
+→ emit EvidenceCommitted
+
+If metadata persistence fails after object write:
+
+handle orphan object safely.
+
+Do not expose incomplete evidence as valid.
+
+Use idempotency/content hash to prevent duplicate logical
+evidence from creating uncontrolled duplicates.
+
+Concurrent identical commits must be safe.
+
+============================================================
+PHASE 11 — IMMUTABILITY
+============================================================
+
+After Evidence becomes committed:
+
+NO UPDATE of evidence payload.
+
+NO OVERWRITE.
+
+NO DELETE through normal application UI/API.
+
+Correction is:
+
+new Evidence record
++
+supersedesEvidenceId
++
+new hash
++
+new object
+
+Original evidence remains immutable.
+
+Test:
+
+attempt modification
+→ denied.
+
+attempt overwrite
+→ denied.
+
+attempt deletion
+→ denied unless explicit retention/legal workflow.
+
+============================================================
+PHASE 12 — RETENTION
+============================================================
+
+Implement retention policy metadata and enforcement.
+
+Evidence contains:
+
+retentionUntil
+
+Retention behavior must be deterministic.
+
+Normal users cannot delete evidence.
+
+When retention expires:
+
+eligible for documented retention deletion workflow.
+
+BUT:
+
+legal hold overrides deletion.
+
+Legal hold must prevent deletion while active.
+
+Test:
+
+expired + no hold
+→ deletion eligible.
+
+expired + legal hold
+→ deletion blocked.
+
+active retention
+→ deletion blocked.
+
+Do not create an unsafe "force delete" endpoint.
+
+============================================================
+PHASE 13 — LEGAL HOLD
+============================================================
+
+Implement legal hold lifecycle.
+
+At minimum:
+
+ACTIVE
+RELEASED
+
+Required:
+
+authorized actor
+reason
+timestamp
+audit
+
+Legal hold must be tenant scoped.
+
+Unauthorized member cannot:
+
+create hold
+release hold
+delete held evidence
+
+Every change must be audited.
+
+============================================================
+PHASE 14 — INTEGRITY VERIFICATION
+============================================================
+
+Implement a verification service/job.
+
+For each evidence:
+
+1. resolve storage reference
+2. verify object exists
+3. retrieve canonical bytes
+4. recompute SHA-256
+5. compare with contentHash
+6. verify metadata consistency
+
+If valid:
+
+integrityStatus = VALID
+
+If missing/corrupt/mismatch:
+
+integrityStatus = INTEGRITY_FAILED
+
+NEVER silently repair the hash.
+
+NEVER replace corrupted evidence with a new payload.
+
+Create an integrity failure incident/audit record.
+
+Emit:
+
+EvidenceIntegrityFailed
+
+Consumers MUST NOT treat integrity_failed evidence as valid.
+
+============================================================
+PHASE 15 — ACCESS CONTROL
+============================================================
+
+Every Evidence operation must be tenant-scoped.
+
+Required operations:
+
+- create/commit
+- inspect metadata
+- retrieve evidence
+- verify
+- legal hold
+- retention workflow
+- supersede/correct
+
+Authorization must be server-side.
+
+At minimum verify:
+
+OWNER/Admin can perform allowed operations.
+
+MEMBER can only perform explicitly allowed read operations.
+
+Cross-tenant access:
+
+DENIED.
+
+IDOR:
+
+DENIED.
+
+Do not trust organizationId from request body.
+
+Organization scope comes from authenticated context.
+
+============================================================
+PHASE 16 — SECURE DOWNLOAD / READ
+============================================================
+
+If the existing architecture exposes evidence retrieval:
+
+return evidence only after authorization.
+
+Do not expose permanent public object URLs.
+
+If signed URL is necessary:
+
+- short TTL
+- tenant scoped
+- evidence scoped
+- audit access
+- no credential exposure
+
+If signed access is not yet required by current environment:
+
+keep the abstraction ready but do not build unrelated public
+sharing functionality.
+
+============================================================
+PHASE 17 — AUDIT
+============================================================
+
+Audit all sensitive Evidence operations.
+
+At minimum:
+
+EvidenceCommitted
+EvidenceRead
+EvidenceVerified
+EvidenceIntegrityFailed
+EvidenceSuperseded
+EvidenceRetentionEligible
+EvidenceDeleted
+LegalHoldCreated
+LegalHoldReleased
+EvidenceAccessDenied
+
+Audit must contain where applicable:
+
+actor
+organizationId
+resource
+purpose
+scope
+result
+correlationId
+timestamp
+
+Never put raw evidence or secrets into audit metadata.
+
+============================================================
+PHASE 18 — DOMAIN EVENTS
+============================================================
+
+Implement:
+
+EvidenceCommitted
+EvidenceIntegrityFailed
+
+Events must follow existing event contract.
+
+Required event fields:
+
+eventId
+eventType
+eventVersion
+occurredAt
+actor
+organizationId
+entityId
+entityVersion
+correlationId
+dataRef
+
+DO NOT put raw evidence payload in the event.
+
+DO NOT put credentials.
+
+DO NOT put signed URLs.
+
+Duplicate event delivery must be safe.
+
+============================================================
+PHASE 19 — M-03 INTEGRATION
+============================================================
+
+Connect M-05 to existing ScanRun/ScanCheckAttempt
+WITHOUT rewriting M-03.
+
+The evidence path should conceptually be:
+
+provider response
+→ redaction
+→ schema validation
+→ canonicalization
+→ evidence commit
+→ evidence reference attached to execution outcome
+
+Evidence failure must remain visible to M-03.
+
+Do NOT silently mark a scan successful
+when evidence commit failed.
+
+Do NOT create Finding/Control status here.
+
+============================================================
+PHASE 20 — FAILURE SEMANTICS
+============================================================
+
+Explicitly handle:
+
+empty payload
+schema error
+provider error
+permission error
+timeout
+storage unavailable
+hash mismatch
+object missing
+retention conflict
+legal hold
+duplicate evidence
+concurrent commit
+cross-tenant access
+unauthorized access
+invalid evidence reference
+
+Never convert:
+
+error
+stale
+missing
+integrity_failed
+
+into valid evidence.
+
+============================================================
+PHASE 21 — CONCURRENCY / IDEMPOTENCY
+============================================================
+
+Test:
+
+two identical evidence commits concurrently.
+
+Expected:
+
+no corrupted evidence
+no conflicting hashes
+no invalid duplicate lineage
+same content hash remains authoritative.
+
+Test:
+
+same hash + same metadata
+→ idempotent.
+
+Conflicting metadata must not silently overwrite
+existing evidence.
+
+============================================================
+PHASE 22 — SECURITY TESTS
+============================================================
+
+Mandatory tests:
+
+1. cross-tenant read denied
+2. cross-tenant verify denied
+3. cross-tenant legal hold denied
+4. MEMBER unauthorized mutation denied
+5. evidence overwrite denied
+6. evidence delete denied outside retention workflow
+7. legal-hold deletion denied
+8. expired evidence without hold becomes eligible
+9. integrity mismatch becomes INTEGRITY_FAILED
+10. secret canary absent after redaction
+11. secret absent from audit
+12. secret absent from logs
+13. signed access cannot cross tenant
+14. malformed evidence rejected
+15. provider schema failure does not create valid evidence
+
+============================================================
+PHASE 23 — INTEGRATION TESTS
+============================================================
+
+Use real PostgreSQL for persistence integration.
+
+Do not reset database.
+
+Run:
+
+Prisma generate
+Prisma validate
+migration status
+migration apply if needed
+
+Test:
+
+ScanRun
+→ ScanCheckAttempt
+→ Evidence
+→ ObservedFact
+
+Verify foreign keys and tenant boundaries.
+
+============================================================
+PHASE 24 — OBJECT STORAGE TEST ADAPTER
+============================================================
+
+If live AWS credentials/object-lock infrastructure
+is unavailable:
+
+create/use deterministic storage adapter for tests.
+
+It must simulate:
+
+write
+read
+exists
+delete eligibility
+versioning
+retention
+hash verification
+
+But clearly separate:
+
+TEST_VERIFIED
+
+from:
+
+LIVE_VERIFIED.
+
+NEVER fake live AWS evidence storage.
+
+============================================================
+PHASE 25 — PROOF / INTEGRITY DRILL
+============================================================
+
+Perform an integrity drill:
+
+1. commit evidence
+2. record hash
+3. read evidence
+4. verify → VALID
+5. deliberately corrupt test object
+6. verify again
+7. expected → INTEGRITY_FAILED
+8. audit generated
+9. EvidenceIntegrityFailed event generated
+10. evidence rejected by downstream eligibility check
+
+Do not repair the corrupted record silently.
+
+============================================================
+PHASE 26 — DOCUMENTATION
+============================================================
+
+Create/update:
+
+M-05 module contract
+M-05 evidence lifecycle documentation
+M-05 security/redaction documentation
+M-05 retention/legal-hold documentation
+M-05 integrity verification runbook
+M-05 capability registry
+M-05 completion dossier
+M-05 proof record
+
+Proof must identify:
+
+requirement
+implementation
+test
+expected result
+actual result
+evidence
+status
+reviewer
+expiry/reverification
+
+============================================================
+PHASE 27 — DEFINITION OF DONE
+============================================================
+
+M-05 MUST NOT be marked COMPLETE unless:
+
+[ ] Evidence schema complete
+[ ] Tenant scoping
+[ ] RBAC
+[ ] Redaction
+[ ] Secret canary
+[ ] Provider schema validation
+[ ] Canonicalization
+[ ] canonicalizationVersion
+[ ] SHA-256
+[ ] content-addressed reference
+[ ] encrypted object storage abstraction
+[ ] object versioning capability
+[ ] retention metadata
+[ ] WORM/Object Lock boundary
+[ ] legal hold
+[ ] immutable write
+[ ] superseding correction
+[ ] no overwrite
+[ ] no unsafe delete
+[ ] integrity verification
+[ ] integrity_failed state
+[ ] EvidenceCommitted event
+[ ] EvidenceIntegrityFailed event
+[ ] audit
+[ ] correlation ID
+[ ] authorized read
+[ ] secure access
+[ ] cross-tenant negative test
+[ ] concurrent commit test
+[ ] PostgreSQL integration test
+[ ] M-03 integration
+[ ] failure semantics
+[ ] recovery behavior
+[ ] documentation
+[ ] capability registry
+[ ] completion dossier
+[ ] proof record
+
+============================================================
+LIVE VERIFICATION RULE
+============================================================
+
+Do not claim:
+
+LIVE_VERIFIED
+
+unless the infrastructure was actually tested.
+
+Possible states:
+
+IMPLEMENTED
+TEST_VERIFIED
+LIVE_VERIFIED
+VERIFICATION_REQUIRED
+DEGRADED
+
+If AWS S3/Object Lock is unavailable:
+
+the code and test adapter may be:
+
+IMPLEMENTED / TEST_VERIFIED
+
+while live WORM capability is:
+
+VERIFICATION_REQUIRED.
+
+Do not fake AWS.
+
+============================================================
+CREDIT EFFICIENCY
+============================================================
+
+VERY IMPORTANT:
+
+Do not rebuild M-01/M-02/M-03.
+
+Do not redesign Prisma.
+
+Do not redesign AWS adapter.
+
+Do not add frontend.
+
+Do not add dashboard.
+
+Do not add findings.
+
+Do not add scoring.
+
+Do not add reports.
+
+Do not add AI.
+
+Do not add remediation.
+
+Do not add billing.
+
+Do not add notification system.
+
+Do not add unnecessary dependencies.
+
+Reuse existing:
+
+services
+repositories
+authorization
+audit
+AWS adapter
+configuration
+event infrastructure
+test utilities
+migration conventions.
+
+Execution strategy:
+
+AUDIT
+→ REUSE
+→ IMPLEMENT ONLY GAP
+→ MIGRATE
+→ TEST
+→ SECURITY TEST
+→ INTEGRATION TEST
+→ INTEGRITY DRILL
+→ DOCUMENT
+→ FINAL GATE.
+
+STOP immediately after M-05 gate is satisfied.
+
+============================================================
+FINAL RESPONSE
+============================================================
+
+Return:
+
+M-05 STATUS:
+COMPLETE / PARTIAL / BLOCKED
+
+Then provide:
+
+1. Existing infrastructure reused
+2. Evidence schema
+3. Redaction status
+4. Canonicalization version
+5. SHA-256 verification
+6. Object storage status
+7. WORM status
+8. Retention status
+9. Legal hold status
+10. Immutability proof
+11. Superseding proof
+12. Integrity verification proof
+13. Tenant/RBAC proof
+14. Audit proof
+15. Event proof
+16. PostgreSQL migration status
+17. Test result
+18. Security test result
+19. Integrity drill result
+20. Live AWS limitation
+21. Capability registry status
+22. Completion dossier status
+
+ABSOLUTE RULE:
+
+DO NOT CLAIM M-05 COMPLETE
+IF A REQUIRED GATE IS NOT VERIFIED.
+
+DO NOT PROCEED TO MASTER PROMPT 08
+UNTIL M-05 PASSES ITS GATE.
+
+MASTER PROMPT 08 IS RESERVED FOR:
+FIRST REAL AWS CONTROLS / GATE B.
+
+DO NOT IMPLEMENT IT HERE.
