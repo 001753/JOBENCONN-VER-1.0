@@ -87,6 +87,20 @@ enum DiscoveryRunStatus {
   CANCELLED
 }
 
+enum SecurityFindingSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum SecurityFindingStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
 model User {
   id                  String              @id @default(uuid()) @db.Uuid
   externalIdentityRef String?             @unique @db.VarChar(255)
@@ -142,6 +156,8 @@ model Organization {
   awsAccounts         AwsAccount[]
   awsResources        AwsResource[]
   discoveryRuns       DiscoveryRun[]
+  securityFindings    SecurityFinding[]
+  securityScanRuns    SecurityScanRun[]
 
   @@index([status])
 }
@@ -274,20 +290,22 @@ model AwsConnection {
 }
 
 model AwsAccount {
-  id             String           @id @default(uuid()) @db.Uuid
-  organizationId String           @db.Uuid
-  connectionId   String           @db.Uuid
-  awsAccountId   String           @db.VarChar(12)
-  alias          String?          @db.VarChar(200)
-  status         AwsAccountStatus @default(ACTIVE)
-  lastVerifiedAt DateTime?
-  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
-  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  connection     AwsConnection    @relation(fields: [connectionId], references: [id], onDelete: Restrict)
-  regions        AwsRegion[]
-  resources      AwsResource[]
-  discoveryRuns  DiscoveryRun[]
+  id               String            @id @default(uuid()) @db.Uuid
+  organizationId   String            @db.Uuid
+  connectionId     String            @db.Uuid
+  awsAccountId     String            @db.VarChar(12)
+  alias            String?           @db.VarChar(200)
+  status           AwsAccountStatus  @default(ACTIVE)
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  connection       AwsConnection     @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  regions          AwsRegion[]
+  resources        AwsResource[]
+  discoveryRuns    DiscoveryRun[]
+  securityFindings SecurityFinding[]
+  securityScanRuns SecurityScanRun[]
 
   @@unique([organizationId, awsAccountId])
   @@index([connectionId, status])
@@ -328,6 +346,7 @@ model AwsResource {
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   account        AwsAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
   connection     AwsConnection     @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  findings       SecurityFinding[]
 
   @@unique([organizationId, accountId, region, service, resourceType, resourceId])
   @@index([organizationId, accountId, status])
@@ -357,7 +376,79 @@ model DiscoveryRun {
   organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   account             AwsAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
   connection          AwsConnection      @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  securityScanRuns    SecurityScanRun[]
+  securityFindings    SecurityFinding[]
 
   @@index([organizationId, status, createdAt])
   @@index([accountId, createdAt])
+}
+
+model SecurityScanRun {
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @db.Uuid
+  accountId            String             @db.Uuid
+  discoveryRunId       String?            @db.Uuid
+  status               DiscoveryRunStatus @default(RUNNING)
+  idempotencyKey       String             @unique @db.VarChar(255)
+  snapshotFingerprint  String             @db.VarChar(128)
+  startedAt            DateTime           @default(now()) @db.Timestamptz(3)
+  finishedAt           DateTime?
+  totalResources       Int                @default(0)
+  evaluatedResources   Int                @default(0)
+  insufficientEvidence Int                @default(0)
+  failedResources      Int                @default(0)
+  rulesEvaluated       Int                @default(0)
+  findingsCreated      Int                @default(0)
+  findingsResolved     Int                @default(0)
+  ruleErrors           Json               @default("[]")
+  correlationId        String             @db.VarChar(128)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account              AwsAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  discoveryRun         DiscoveryRun?      @relation(fields: [discoveryRunId], references: [id], onDelete: SetNull)
+  findings             SecurityFinding[]
+
+  @@index([organizationId, accountId, createdAt])
+  @@index([organizationId, status, createdAt])
+}
+
+model SecurityFinding {
+  id               String                  @id @default(uuid()) @db.Uuid
+  organizationId   String                  @db.Uuid
+  ruleId           String                  @db.VarChar(80)
+  ruleVersion      String                  @db.VarChar(32)
+  awsResourceId    String                  @db.Uuid
+  accountId        String                  @db.Uuid
+  resourceId       String                  @db.VarChar(512)
+  resourceType     String                  @db.VarChar(120)
+  awsAccountId     String                  @db.VarChar(12)
+  region           String                  @db.VarChar(64)
+  severity         SecurityFindingSeverity
+  status           SecurityFindingStatus   @default(OPEN)
+  title            String                  @db.VarChar(255)
+  description      String
+  evidence         Json
+  recommendation   String
+  firstDetectedAt  DateTime                @default(now()) @db.Timestamptz(3)
+  lastDetectedAt   DateTime                @default(now()) @db.Timestamptz(3)
+  acknowledgedAt   DateTime?
+  resolvedAt       DateTime?
+  resolutionReason String?                 @db.VarChar(500)
+  discoveryRunId   String?                 @db.Uuid
+  scanRunId        String                  @db.Uuid
+  createdAt        DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime                @updatedAt @db.Timestamptz(3)
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  resource         AwsResource             @relation(fields: [awsResourceId], references: [id], onDelete: Restrict)
+  account          AwsAccount              @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  discoveryRun     DiscoveryRun?           @relation(fields: [discoveryRunId], references: [id], onDelete: SetNull)
+  scanRun          SecurityScanRun         @relation(fields: [scanRunId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, ruleId, ruleVersion, awsAccountId, region, resourceId])
+  @@index([organizationId, status, severity, lastDetectedAt])
+  @@index([organizationId, ruleId, resourceType])
+  @@index([organizationId, awsAccountId, region])
+  @@index([organizationId, accountId, status])
+  @@index([resourceId])
 }

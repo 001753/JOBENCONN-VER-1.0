@@ -58,3 +58,17 @@ Create a connection through the authenticated API; the live result must come
 from AWS STS. Without an available provider, live verification remains pending
 and no success is fabricated. Required least-privilege actions are listed in
 `DOC/AWS-INTEGRATION.md`.
+
+### Prompt 05 AWS security analysis
+
+The security engine reads the normalized `AwsResource` inventory and evaluates
+only trusted, versioned rules in `src/security-rules.ts`. It never makes one
+AWS call per rule. Findings and scan runs are organization-scoped Prisma data,
+with deterministic idempotency, evidence, provenance, automatic resolve/reopen,
+and audit events. See `DOC/AWS-SECURITY-ANALYSIS.md`.
+
+Apply the Prompt 05 migration with `npx prisma migrate deploy` before using the
+protected `/security/*` routes. The findings permissions are
+`findings.read`, `findings.run`, `findings.acknowledge`, and `findings.resolve`;
+the existing role matrix grants read-only findings access to MEMBER/VIEWER and
+mutation access to OWNER/ADMIN.

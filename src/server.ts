@@ -9,6 +9,7 @@ import { StructuredLogger } from "./logger.js";
 import { SessionManager, SESSION_COOKIE, parseCookies } from "./session.js";
 import { FixedWindowRateLimiter } from "./rate-limit.js";
 import { AwsService, customerAwsAuthorization } from "./aws-service.js";
+import { SecurityAnalysisService, customerSecurityAuthorization } from "./security-service.js";
 
 const MAX_REQUEST_BYTES = 1_048_576;
 const authRateLimiter = new FixedWindowRateLimiter(10, 60_000);
@@ -95,6 +96,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     : new DevIdentityProvider(config.environment !== "production");
   const identity = new IdentityService(db, sessions);
   const aws = new AwsService(db);
+  const security = new SecurityAnalysisService(db);
   const cookies = parseCookies(request.headers.cookie);
   const sessionToken = cookies[SESSION_COOKIE];
   const csrfToken = request.headers["x-csrf-token"];
@@ -176,6 +178,18 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     return customerAwsAuthorization({ actorUserId: actor.userId, organizationId: organization.organizationId, role: organization.role });
   };
 
+  const securityAuthorization = async (permission: "findings.read" | "findings.run" | "findings.acknowledge" | "findings.resolve") => {
+    const organizationId = actor.session.activeOrganizationId;
+    if (!organizationId) throw new AppError("ORG_NOT_FOUND", "An active organization is required.");
+    const organization = await identity.authorizeOrganization(actor, organizationId, permission, correlationId);
+    return customerSecurityAuthorization({
+      actorUserId: actor.userId,
+      organizationId: organization.organizationId,
+      role: organization.role,
+      context: organization.context,
+    });
+  };
+
   if (path === "/aws/connections" && method === "GET") {
     const auth = await awsAuthorization();
     sendJson(response, 200, { connections: await aws.listConnections(auth) });
@@ -249,6 +263,92 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     const auth = await awsAuthorization();
     sendJson(response, 200, { resources: await aws.listResources(auth, accountId) });
     return;
+  }
+
+  const securityScanMatch = /^\/security\/accounts\/([^/]+)\/scans$/.exec(path);
+  if (securityScanMatch) {
+    const accountId = securityScanMatch[1];
+    if (!accountId) throw new AppError("NOT_FOUND", "Route not found.");
+    if (method === "GET") {
+      const auth = await securityAuthorization("findings.read");
+      sendJson(response, 200, { scans: await security.listScans(auth, accountId) });
+      return;
+    }
+    if (method === "POST") {
+      await requireCsrf();
+      const body = await readJson(request);
+      const auth = await securityAuthorization("findings.run");
+      const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined;
+      sendJson(response, 202, { scan: await security.runScan(auth, accountId, correlationId, idempotencyKey) });
+      return;
+    }
+  }
+
+  const scanDetailMatch = /^\/security\/scans\/([^/]+)$/.exec(path);
+  if (scanDetailMatch && method === "GET") {
+    const scanId = scanDetailMatch[1];
+    if (!scanId) throw new AppError("NOT_FOUND", "Route not found.");
+    const auth = await securityAuthorization("findings.read");
+    sendJson(response, 200, { scan: await security.getScan(auth, scanId) });
+    return;
+  }
+
+  if (path === "/security/findings" && method === "GET") {
+    const url = new URL(request.url ?? "/", "http://joben.local");
+    const parsePositive = (value: string | null, fallback: number, max: number, field: string): number => {
+      if (value === null) return fallback;
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) throw new AppError("VALIDATION_ERROR", `${field} must be a positive integer within a safe range.`);
+      return parsed;
+    };
+    const auth = await securityAuthorization("findings.read");
+    const allowed = <T extends string>(value: string | null, values: readonly T[], field: string): T | undefined => {
+      if (value === null) return undefined;
+      if (!values.includes(value as T)) throw new AppError("VALIDATION_ERROR", `${field} is invalid.`);
+      return value as T;
+    };
+    const severity = allowed(url.searchParams.get("severity"), ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"], "severity");
+    const status = allowed(url.searchParams.get("status"), ["OPEN", "ACKNOWLEDGED", "RESOLVED"], "status");
+    const ruleId = url.searchParams.get("ruleId")?.trim();
+    const resourceType = url.searchParams.get("resourceType")?.trim();
+    const awsAccountId = url.searchParams.get("awsAccountId")?.trim();
+    const region = url.searchParams.get("region")?.trim();
+    sendJson(response, 200, await security.listFindings(auth, {
+      ...(severity ? { severity } : {}),
+      ...(status ? { status } : {}),
+      ...(ruleId ? { ruleId } : {}),
+      ...(resourceType ? { resourceType } : {}),
+      ...(awsAccountId ? { awsAccountId } : {}),
+      ...(region ? { region } : {}),
+      page: parsePositive(url.searchParams.get("page"), 1, 1_000_000, "page"),
+      pageSize: parsePositive(url.searchParams.get("pageSize"), 50, 100, "pageSize"),
+    }));
+    return;
+  }
+
+  const findingDetailMatch = /^\/security\/findings\/([^/]+)(?:\/(acknowledge|resolve))?$/.exec(path);
+  if (findingDetailMatch) {
+    const findingId = findingDetailMatch[1];
+    const action = findingDetailMatch[2];
+    if (!findingId) throw new AppError("NOT_FOUND", "Route not found.");
+    if (method === "GET" && !action) {
+      const auth = await securityAuthorization("findings.read");
+      sendJson(response, 200, { finding: await security.getFinding(auth, findingId) });
+      return;
+    }
+    if (method === "POST" && action === "acknowledge") {
+      await requireCsrf();
+      const auth = await securityAuthorization("findings.acknowledge");
+      sendJson(response, 200, { finding: await security.acknowledgeFinding(auth, findingId, correlationId) });
+      return;
+    }
+    if (method === "POST" && action === "resolve") {
+      await requireCsrf();
+      const body = await readJson(request);
+      const auth = await securityAuthorization("findings.resolve");
+      sendJson(response, 200, { finding: await security.resolveFinding(auth, findingId, requiredString(body.reason, "reason"), correlationId) });
+      return;
+    }
   }
 
   const memberMatch = /^\/organizations\/([^/]+)\/members$/.exec(path);
