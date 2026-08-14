@@ -112,6 +112,24 @@ enum SecurityFindingStatus {
   RESOLVED
 }
 
+enum EvidenceType {
+  PROVIDER_RESPONSE
+  SCAN_CHECK
+  INVENTORY_SNAPSHOT
+  CONFIGURATION
+}
+
+enum EvidenceIntegrityStatus {
+  VALID
+  INTEGRITY_FAILED
+}
+
+enum EvidenceLegalHoldStatus {
+  NONE
+  ACTIVE
+  RELEASED
+}
+
 model User {
   id                  String              @id @default(uuid()) @db.Uuid
   externalIdentityRef String?             @unique @db.VarChar(255)
@@ -125,6 +143,9 @@ model User {
   scanRunsRequested   SecurityScanRun[]   @relation("ScanRequestedBy")
   idempotencyRecords  IdempotencyRecord[]
   sessions            Session[]
+  evidenceHoldsCreated EvidenceLegalHold[] @relation("EvidenceHoldCreatedBy")
+  evidenceHoldsReleased EvidenceLegalHold[] @relation("EvidenceHoldReleasedBy")
+  domainEvents        DomainEvent[]
 
   @@index([status])
 }
@@ -174,6 +195,10 @@ model Organization {
   scanCheckOutcomes   ScanCheckOutcome[]
   scanEvents          ScanEvent[]
   scanSchedules       ScanSchedule[]
+  evidences           Evidence[]
+  observedFacts       ObservedFact[]
+  evidenceLegalHolds  EvidenceLegalHold[]
+  domainEvents        DomainEvent[]
 
   @@index([status])
 }
@@ -302,6 +327,7 @@ model AwsConnection {
   resources         AwsResource[]
   discoveryRuns     DiscoveryRun[]
   securityScanRuns  SecurityScanRun[]
+  evidenceSources   Evidence[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
@@ -472,6 +498,7 @@ model SecurityScanRun {
   job                  ScanJob?
   outcomes             ScanCheckOutcome[]
   events               ScanEvent[]
+  evidences            Evidence[]
 
   @@index([organizationId, accountId, createdAt])
   @@index([organizationId, status, createdAt])
@@ -522,10 +549,112 @@ model ScanCheckOutcome {
   createdAt        DateTime @default(now()) @db.Timestamptz(3)
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   scanRun          SecurityScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  evidences        Evidence[]
 
   @@unique([scanRunId, checkId, checkVersion, resourceIdentity, attempt])
   @@index([organizationId, scanRunId, createdAt])
   @@index([scanRunId, resourceIdentity])
+}
+
+model Evidence {
+  id                       String                   @id @default(uuid()) @db.Uuid
+  organizationId           String                   @db.Uuid
+  sourceIntegrationId      String?                  @db.Uuid
+  scanRunId                String?                  @db.Uuid
+  scanCheckOutcomeId       String?                  @db.Uuid
+  findingId                String?                  @db.Uuid
+  controlStatusId          String?                  @db.Uuid
+  type                     EvidenceType
+  provider                 String                   @db.VarChar(80)
+  storageRef               String                   @unique @db.VarChar(512)
+  storageUrl               String?                  @db.VarChar(2048)
+  storageVersionId         String?                  @db.VarChar(255)
+  contentHash              String                   @db.VarChar(64)
+  canonicalizationVersion  String                   @db.VarChar(32)
+  schemaVersion            String                   @db.VarChar(80)
+  providerRequestId        String?                  @db.VarChar(255)
+  sourceEndpoint           String?                  @db.VarChar(2048)
+  collectedAt              DateTime                 @db.Timestamptz(3)
+  retentionUntil           DateTime                 @db.Timestamptz(3)
+  immutable                Boolean                  @default(true)
+  integrityStatus          EvidenceIntegrityStatus @default(VALID)
+  integrityVerifiedAt      DateTime?                @db.Timestamptz(3)
+  integrityFailureReason   String?                  @db.VarChar(255)
+  legalHoldStatus          EvidenceLegalHoldStatus @default(NONE)
+  supersedesEvidenceId     String?                  @db.Uuid
+  createdAt                DateTime                 @default(now()) @db.Timestamptz(3)
+  organization             Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  sourceIntegration        AwsConnection?           @relation(fields: [sourceIntegrationId], references: [id], onDelete: Restrict)
+  scanRun                  SecurityScanRun?         @relation(fields: [scanRunId], references: [id], onDelete: Restrict)
+  scanCheckOutcome         ScanCheckOutcome?        @relation(fields: [scanCheckOutcomeId], references: [id], onDelete: SetNull)
+  supersedesEvidence       Evidence?               @relation("EvidenceSupersession", fields: [supersedesEvidenceId], references: [id], onDelete: Restrict)
+  supersededBy             Evidence[]              @relation("EvidenceSupersession")
+  observedFacts            ObservedFact[]
+  legalHolds               EvidenceLegalHold[]
+
+  @@unique([organizationId, contentHash, type, sourceIntegrationId])
+  @@index([organizationId, scanRunId, createdAt])
+  @@index([organizationId, contentHash])
+  @@index([organizationId, integrityStatus, integrityVerifiedAt])
+  @@index([organizationId, retentionUntil, legalHoldStatus])
+  @@index([organizationId, legalHoldStatus])
+}
+
+model ObservedFact {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @db.Uuid
+  evidenceId      String       @db.Uuid
+  provider        String       @db.VarChar(80)
+  resourceKey     String       @db.VarChar(512)
+  observedAt      DateTime     @db.Timestamptz(3)
+  payloadSchema   String       @db.VarChar(80)
+  extractedFields Json
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evidence        Evidence     @relation(fields: [evidenceId], references: [id], onDelete: Cascade)
+
+  @@unique([evidenceId, provider, resourceKey])
+  @@index([organizationId, evidenceId])
+  @@index([organizationId, provider, resourceKey])
+  @@index([observedAt])
+}
+
+model EvidenceLegalHold {
+  id               String                  @id @default(uuid()) @db.Uuid
+  organizationId   String                  @db.Uuid
+  evidenceId       String                  @db.Uuid
+  status            EvidenceLegalHoldStatus @default(ACTIVE)
+  reason           String                  @db.VarChar(500)
+  createdByUserId  String                  @db.Uuid
+  releasedByUserId String?                 @db.Uuid
+  createdAt        DateTime                @default(now()) @db.Timestamptz(3)
+  releasedAt       DateTime?               @db.Timestamptz(3)
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  evidence         Evidence                @relation(fields: [evidenceId], references: [id], onDelete: Restrict)
+  createdBy        User                      @relation("EvidenceHoldCreatedBy", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  releasedBy       User?                     @relation("EvidenceHoldReleasedBy", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, evidenceId, status])
+  @@index([organizationId, status, createdAt])
+}
+
+model DomainEvent {
+  id             String       @id @default(uuid()) @db.Uuid
+  eventType      String       @db.VarChar(120)
+  eventVersion   Int          @default(1)
+  occurredAt     DateTime     @default(now()) @db.Timestamptz(3)
+  actorUserId    String?      @db.Uuid
+  organizationId String       @db.Uuid
+  entityId       String       @db.Uuid
+  entityVersion  Int          @default(1)
+  correlationId  String       @db.VarChar(128)
+  dataRef        String       @db.VarChar(512)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  actor          User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@unique([entityId, eventType, entityVersion])
+  @@index([organizationId, occurredAt])
+  @@index([organizationId, eventType, entityId])
 }
 
 model ScanEvent {

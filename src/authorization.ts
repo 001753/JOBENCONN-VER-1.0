@@ -30,14 +30,20 @@ export const PERMISSIONS = [
   "scan.dead_letter.replay",
   "scan.recovery",
   "scan.circuit_breaker.recover",
+  "evidence.read",
+  "evidence.commit",
+  "evidence.verify",
+  "evidence.legal_hold",
+  "evidence.delete",
+  "evidence.supersede",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 const rolePermissions: Record<Role, ReadonlySet<Permission>> = {
   OWNER: new Set(PERMISSIONS),
   ADMIN: new Set(PERMISSIONS.filter((permission) => permission !== "ownership.transfer")),
-  MEMBER: new Set(["organization.read", "member.read", "aws.connection.read", "aws.inventory.read", "findings.read", "scan.read"]),
-  VIEWER: new Set(["organization.read", "member.read", "aws.connection.read", "aws.inventory.read", "findings.read", "scan.read"]),
+  MEMBER: new Set(["organization.read", "member.read", "aws.connection.read", "aws.inventory.read", "findings.read", "scan.read", "evidence.read"]),
+  VIEWER: new Set(["organization.read", "member.read", "aws.connection.read", "aws.inventory.read", "findings.read", "scan.read", "evidence.read"]),
 };
 
 export interface AuthorizationActor {
