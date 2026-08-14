@@ -53,6 +53,7 @@
             <span aria-hidden="true">⌕</span>
             <input id="global-search" type="search" placeholder="Search accounts, controls, findings, evidence" aria-label="Global search">
             <kbd>⌘ K</kbd>
+            <div id="search-results" class="search-results hidden" role="listbox" aria-label="Search results"></div>
           </div>
           <div class="top-actions">
             <button class="icon-button" id="theme-button" aria-label="Toggle color theme">◐</button>
@@ -137,6 +138,10 @@
             </section>
 
             <section class="split-grid lower-grid">
+              <article class="panel" id="accounts">
+                <div class="panel-header"><div><span class="eyebrow">SCOPE</span><h2>Provider accounts</h2></div><span class="panel-meta" id="account-meta">No data</span></div>
+                <div id="accounts-list" class="account-list"></div>
+              </article>
               <article class="panel" id="evidence">
                 <div class="panel-header"><div><span class="eyebrow">PROOF</span><h2>Evidence health</h2></div></div>
                 <div id="evidence-detail" class="evidence-row"></div>
@@ -144,11 +149,15 @@
               <article class="panel" id="findings">
                 <div class="panel-header"><div><span class="eyebrow">DO</span><h2>Next actions</h2></div></div>
                 <div class="action-list">
-                  <div class="action-item"><span class="action-number">01</span><span>Review failed controls and open findings</span><span class="action-arrow">→</span></div>
-                  <div class="action-item"><span class="action-number">02</span><span>Inspect verified evidence before remediation</span><span class="action-arrow">→</span></div>
-                  <div class="action-item"><span class="action-number">03</span><span>Run a fresh scan when accounts change</span><span class="action-arrow">→</span></div>
+                  <button class="action-item" id="view-controls-action" type="button"><span class="action-number">01</span><span>Review failed controls and open findings</span><span class="action-arrow">→</span></button>
+                  <button class="action-item" id="verify-evidence-action" type="button"><span class="action-number">02</span><span>Inspect and verify available evidence</span><span class="action-arrow">→</span></button>
+                  <button class="action-item" id="run-scan-action" type="button"><span class="action-number">03</span><span>Run a fresh read-only scan</span><span class="action-arrow">→</span></button>
                 </div>
               </article>
+            </section>
+            <section id="detail-panel" class="panel detail-panel hidden" aria-live="polite" aria-labelledby="detail-title">
+              <div class="panel-header"><div><span class="eyebrow">DETAIL</span><h2 id="detail-title">Selected evidence</h2></div><button class="icon-button" id="close-detail" type="button" aria-label="Close detail">×</button></div>
+              <div id="detail-content" class="detail-content"></div>
             </section>
           </div>
         </section>

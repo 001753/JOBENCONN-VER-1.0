@@ -1257,7 +1257,7 @@ export class SecurityAnalysisService {
       if (verified.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Root MFA evidence failed integrity verification.");
       stage = "evaluation";
       const evaluation = evaluateRootMfa(observation);
-      const result = await this.persistRootMfaResult(auth, scan, account.awsAccountId, outcome.id, attempt, evaluation, verified.id, verified.contentHash, observation.observedAt);
+      const result = await this.persistRootMfaResult(auth, scan, account.awsAccountId, outcome.id, attempt, evaluation, verified.id, verified.contentHash, observation.observedAt, startedAt);
       await audit.append(auth.context, {
         actorUserId: auth.actorUserId,
         action: "CONTROL_EVALUATED",
@@ -1336,6 +1336,7 @@ export class SecurityAnalysisService {
     evidenceId: string,
     evidenceHash: string,
     observedAt: Date,
+    checkStartedAt: Date,
   ): Promise<ControlResultRecord> {
     const result = await this.db.controlResult.create({
       data: {
@@ -1384,7 +1385,7 @@ export class SecurityAnalysisService {
     });
     await this.db.scanCheckOutcome.update({
       where: { id: outcomeId },
-      data: { status: evaluation.status, finishedAt: new Date(), durationMs: Math.max(0, Date.now() - scan.createdAt.getTime()) },
+      data: { status: evaluation.status, finishedAt: new Date(), durationMs: Math.max(0, Date.now() - checkStartedAt.getTime()) },
     });
     return result;
   }
