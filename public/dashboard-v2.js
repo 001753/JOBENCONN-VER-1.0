@@ -118,7 +118,10 @@
     renderPosture(summary); renderMetrics(summary); renderRisk(summary); renderActions(summary);
     renderScan(summary.latestScan); renderAccounts(summary.accountList || []); renderControls(summary.latestControlResults || []);
     renderFindings(findings); renderEvidence(summary.latestEvidence);
-    $("scan-button").disabled = !(summary.accountList || []).length;
+    const canScan = Boolean((summary.accountList || []).length);
+    $("scan-button").disabled = !canScan;
+    $("scan-button").title = canScan ? "Queue a read-only security scan" : "Verify an AWS account before running a scan";
+    $("scan-button").setAttribute("aria-label", canScan ? "Run a read-only security scan" : "Run scan unavailable until an AWS account is verified");
   };
   const load = async () => {
     try {
