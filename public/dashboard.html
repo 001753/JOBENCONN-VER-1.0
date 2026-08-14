@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="JOBEN Enterprise security posture">
+    <title>JOBEN Enterprise · Security posture</title>
+    <link rel="stylesheet" href="/dashboard.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary navigation">
+        <a class="brand" href="/dashboard" aria-label="JOBEN Enterprise home">
+          <span class="brand-mark" aria-hidden="true">J</span>
+          <span><strong>JOBEN</strong><small>ENTERPRISE</small></span>
+        </a>
+        <div class="context-card" id="tenant-context">
+          <span class="eyebrow">ACTIVE ORGANIZATION</span>
+          <strong id="organization-label">Awaiting session</strong>
+          <span class="muted" id="role-label">No tenant selected</span>
+        </div>
+        <nav class="nav-groups">
+          <div class="nav-group">
+            <span class="nav-label">Overview</span>
+            <a class="nav-item active" href="/dashboard"><span>▦</span>Dashboard</a>
+          </div>
+          <div class="nav-group">
+            <span class="nav-label">Security</span>
+            <a class="nav-item" href="#accounts"><span>◈</span>Accounts</a>
+            <a class="nav-item" href="#scans"><span>◌</span>Scans</a>
+            <a class="nav-item" href="#controls"><span>◇</span>Controls</a>
+            <a class="nav-item" href="#findings"><span>!</span>Findings</a>
+          </div>
+          <div class="nav-group">
+            <span class="nav-label">Evidence</span>
+            <a class="nav-item" href="#evidence"><span>▤</span>Evidence Vault</a>
+            <a class="nav-item" href="#audit"><span>⌁</span>Audit trail</a>
+          </div>
+          <div class="nav-group">
+            <span class="nav-label">Administration</span>
+            <a class="nav-item" href="#settings"><span>⚙</span>Settings</a>
+          </div>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="status-dot"></span><span>Read-only posture view</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="icon-button mobile-menu" id="menu-button" aria-label="Open navigation">☰</button>
+          <div class="search-shell">
+            <span aria-hidden="true">⌕</span>
+            <input id="global-search" type="search" placeholder="Search accounts, controls, findings, evidence" aria-label="Global search">
+            <kbd>⌘ K</kbd>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="theme-button" aria-label="Toggle color theme">◐</button>
+            <button class="icon-button" id="density-button" aria-label="Toggle density mode">≡</button>
+            <span class="avatar" id="avatar" aria-hidden="true">?</span>
+          </div>
+        </header>
+
+        <section class="content">
+          <div class="page-header">
+            <div>
+              <span class="eyebrow accent">SECURITY POSTURE</span>
+              <h1>Good morning<span class="period">.</span></h1>
+              <p class="lede">A clear view of what is happening, why, and what to do next.</p>
+            </div>
+            <div class="header-actions">
+              <button class="button secondary" id="refresh-button">↻ <span>Refresh data</span></button>
+              <button class="button primary" id="scan-button" disabled>Run scan <span>→</span></button>
+            </div>
+          </div>
+
+          <section id="notice" class="notice hidden" role="status"></section>
+          <section id="login-card" class="login-card" aria-labelledby="login-title">
+            <div>
+              <span class="eyebrow accent">DEVELOPMENT ADAPTER</span>
+              <h2 id="login-title">Open a tenant session</h2>
+              <p class="muted">Dashboard data is always fetched from the protected backend. No demo values are used.</p>
+            </div>
+            <form id="login-form" class="login-form">
+              <label for="identity">Dev identity</label>
+              <div class="form-row">
+                <input id="identity" name="identity" value="dashboard-operator" autocomplete="username" required>
+                <button class="button primary" type="submit">Sign in</button>
+              </div>
+              <small class="muted">Unavailable when the server runs in production.</small>
+            </form>
+          </section>
+
+          <div id="dashboard-content" class="hidden">
+            <section class="metric-grid" aria-label="Posture summary">
+              <article class="metric-card hero-metric">
+                <div class="metric-head"><span>Posture state</span><span class="status-icon neutral" id="posture-icon">—</span></div>
+                <strong id="posture-value">Awaiting scan</strong>
+                <p id="posture-detail">No control evaluation is available yet.</p>
+                <div class="freshness" id="freshness">Source: backend · freshness unavailable</div>
+              </article>
+              <article class="metric-card">
+                <div class="metric-head"><span>Compliance score</span><span class="status-icon neutral">?</span></div>
+                <strong class="unavailable" id="score-value">Not calculated</strong>
+                <p>Scoring belongs to the next control-system phase.</p>
+                <a href="#controls" class="text-link">View evaluated controls →</a>
+              </article>
+              <article class="metric-card danger-card">
+                <div class="metric-head"><span>Open findings</span><span class="status-icon danger">!</span></div>
+                <strong id="finding-count">—</strong>
+                <p><span id="critical-count">—</span> critical risk items</p>
+                <a href="#findings" class="text-link">Investigate findings →</a>
+              </article>
+              <article class="metric-card">
+                <div class="metric-head"><span>Connected accounts</span><span class="status-icon info">◈</span></div>
+                <strong id="account-count">—</strong>
+                <p>Active provider accounts</p>
+                <a href="#accounts" class="text-link">View accounts →</a>
+              </article>
+            </section>
+
+            <section class="split-grid">
+              <article class="panel" id="controls">
+                <div class="panel-header">
+                  <div><span class="eyebrow">WHY</span><h2>Control evaluation</h2></div>
+                  <span class="panel-meta" id="control-count">No data</span>
+                </div>
+                <div id="controls-list" class="control-list"></div>
+              </article>
+              <article class="panel" id="scans">
+                <div class="panel-header">
+                  <div><span class="eyebrow">WHAT HAPPENED</span><h2>Latest scan</h2></div>
+                  <span class="panel-meta" id="scan-status">Awaiting scan</span>
+                </div>
+                <div id="scan-detail" class="empty-state">No scan has been requested for this organization.</div>
+              </article>
+            </section>
+
+            <section class="split-grid lower-grid">
+              <article class="panel" id="evidence">
+                <div class="panel-header"><div><span class="eyebrow">PROOF</span><h2>Evidence health</h2></div></div>
+                <div id="evidence-detail" class="evidence-row"></div>
+              </article>
+              <article class="panel" id="findings">
+                <div class="panel-header"><div><span class="eyebrow">DO</span><h2>Next actions</h2></div></div>
+                <div class="action-list">
+                  <div class="action-item"><span class="action-number">01</span><span>Review failed controls and open findings</span><span class="action-arrow">→</span></div>
+                  <div class="action-item"><span class="action-number">02</span><span>Inspect verified evidence before remediation</span><span class="action-arrow">→</span></div>
+                  <div class="action-item"><span class="action-number">03</span><span>Run a fresh scan when accounts change</span><span class="action-arrow">→</span></div>
+                </div>
+              </article>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/dashboard.js" defer></script>
+  </body>
+</html>

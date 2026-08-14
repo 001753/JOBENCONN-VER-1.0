@@ -4,6 +4,7 @@ import { getPrismaClient } from "./database.js";
 import { StructuredLogger } from "./logger.js";
 import { createAppServer } from "./server.js";
 import { SecurityAnalysisService } from "./security-service.js";
+import { DefaultAwsReadOnlyDiscoveryClientFactory } from "./aws-service.js";
 import { ScanWorker } from "./scan-worker.js";
 import { randomUUID } from "node:crypto";
 
@@ -12,7 +13,7 @@ try {
   const logger = new StructuredLogger(config.logLevel);
   const server = createAppServer(config, logger);
   const db = getPrismaClient();
-  const security = new SecurityAnalysisService(db);
+  const security = new SecurityAnalysisService(db, undefined, new DefaultAwsReadOnlyDiscoveryClientFactory());
   const worker = new ScanWorker(db, {
     execute: async (job, scan) => security.executeQueuedRun(scan.id, job.attempt),
   }, `scan-worker-${randomUUID()}`);

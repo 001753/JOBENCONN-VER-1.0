@@ -8,6 +8,7 @@ import { validateProviderEvidence } from "./evidence-schema.js";
 import { InMemoryEvidenceObjectStorage, type EvidenceObjectStorage } from "./evidence-storage.js";
 
 export const EVIDENCE_EVENT_VERSION = 1;
+export const defaultEvidenceStorage = new InMemoryEvidenceObjectStorage();
 
 export interface ObservedFactInput {
   readonly provider: string;
@@ -89,7 +90,7 @@ function isSameEvidenceMetadata(existing: Prisma.EvidenceGetPayload<object>, inp
 export class EvidenceService {
   constructor(
     private readonly db: PrismaClient,
-    private readonly storage: EvidenceObjectStorage = new InMemoryEvidenceObjectStorage(),
+    private readonly storage: EvidenceObjectStorage = defaultEvidenceStorage,
   ) {}
 
   get storageCapabilities(): EvidenceObjectStorage["capabilities"] {

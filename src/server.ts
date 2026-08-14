@@ -13,6 +13,9 @@ import { FixedWindowRateLimiter } from "./rate-limit.js";
 import { AwsService, customerAwsAuthorization } from "./aws-service.js";
 import { SecurityAnalysisService, customerSecurityAuthorization } from "./security-service.js";
 import { EvidenceService } from "./evidence-service.js";
+import { DefaultAwsReadOnlyDiscoveryClientFactory } from "./aws-service.js";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 const MAX_REQUEST_BYTES = 1_048_576;
 const authRateLimiter = new FixedWindowRateLimiter(10, 60_000);
@@ -31,6 +34,13 @@ function sendJson(response: ServerResponse, statusCode: number, payload: unknown
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.setHeader("Content-Length", Buffer.byteLength(body));
   if (setCookies.length > 0) response.setHeader("Set-Cookie", setCookies);
+  response.end(body);
+}
+
+function sendText(response: ServerResponse, statusCode: number, body: string, contentType: string): void {
+  response.statusCode = statusCode;
+  response.setHeader("Content-Type", `${contentType}; charset=utf-8`);
+  response.setHeader("Content-Length", Buffer.byteLength(body));
   response.end(body);
 }
 
@@ -97,6 +107,19 @@ async function route(
   const method = request.method ?? "GET";
   const path = new URL(request.url ?? "/", "http://joben.local").pathname;
 
+  if (path === "/" || path === "/dashboard") {
+    if (method !== "GET") throw new AppError("VALIDATION_ERROR", "Dashboard is read-only.");
+    const html = await readFile(resolve(process.cwd(), "public/dashboard.html"), "utf8");
+    sendText(response, 200, html, "text/html");
+    return;
+  }
+  if (path === "/dashboard.css" || path === "/dashboard.js") {
+    if (method !== "GET") throw new AppError("VALIDATION_ERROR", "Dashboard assets are read-only.");
+    const asset = await readFile(resolve(process.cwd(), "public", path.slice(1)), "utf8");
+    sendText(response, 200, asset, path.endsWith(".css") ? "text/css" : "application/javascript");
+    return;
+  }
+
   if (path === "/health/live") {
     if (method !== "GET") throw new AppError("VALIDATION_ERROR", "Health liveness is read-only.");
     sendJson(response, 200, { status: "ok", endpoint: "liveness", capabilityState: "IMPLEMENTED" });
@@ -129,7 +152,7 @@ async function route(
     : new DevIdentityProvider(config.environment !== "production");
   const identity = new IdentityService(db, sessions);
   const aws = new AwsService(db);
-  const security = new SecurityAnalysisService(db);
+  const security = new SecurityAnalysisService(db, undefined, new DefaultAwsReadOnlyDiscoveryClientFactory());
   const cookies = parseCookies(request.headers.cookie);
   const sessionToken = cookies[SESSION_COOKIE];
   const csrfToken = request.headers["x-csrf-token"];
@@ -469,6 +492,46 @@ async function route(
   if (path === "/security/queue" && method === "GET") {
     const auth = await securityAuthorization("scan.read");
     sendJson(response, 200, { backlog: await security.queueBacklog(auth) });
+    return;
+  }
+
+  if (path === "/dashboard/summary" && method === "GET") {
+    const auth = await securityAuthorization("scan.read");
+    sendJson(response, 200, { summary: await security.getDashboardSummary(auth) });
+    return;
+  }
+
+  if (path === "/security/controls" && method === "GET") {
+    const auth = await securityAuthorization("findings.read");
+    sendJson(response, 200, {
+      controls: [{
+        checkId: "AWS-IAM-ROOT-MFA",
+        checkVersion: "1",
+        provider: "aws",
+        service: "IAM",
+        operation: "IAM.GetAccountSummary",
+        resourceType: "AWS:IAM:root-account",
+        requiredPermissions: ["iam:GetAccountSummary"],
+        evaluatorVersion: "1",
+        statusStates: ["PASS", "FAIL", "ERROR", "NOT_APPLICABLE"],
+        source: "src/root-mfa-control.ts",
+      }],
+      results: await security.listControlResults(auth),
+    });
+    return;
+  }
+
+  const controlResultMatch = /^\/security\/control-results\/([^/]+)$/.exec(path);
+  if (controlResultMatch && method === "GET") {
+    const auth = await securityAuthorization("findings.read");
+    sendJson(response, 200, { result: await security.getControlResult(auth, controlResultMatch[1]!) });
+    return;
+  }
+
+  const scanControlResultsMatch = /^\/security\/scans\/([^/]+)\/control-results$/.exec(path);
+  if (scanControlResultsMatch && method === "GET") {
+    const auth = await securityAuthorization("findings.read");
+    sendJson(response, 200, { results: await security.listControlResults(auth, scanControlResultsMatch[1]!) });
     return;
   }
 

@@ -193,6 +193,7 @@ model Organization {
   securityScanRuns    SecurityScanRun[]
   scanJobs            ScanJob[]
   scanCheckOutcomes   ScanCheckOutcome[]
+  controlResults      ControlResult[]
   scanEvents          ScanEvent[]
   scanSchedules       ScanSchedule[]
   evidences           Evidence[]
@@ -497,6 +498,7 @@ model SecurityScanRun {
   findings             SecurityFinding[]
   job                  ScanJob?
   outcomes             ScanCheckOutcome[]
+  controlResults       ControlResult[]
   events               ScanEvent[]
   evidences            Evidence[]
 
@@ -550,10 +552,48 @@ model ScanCheckOutcome {
   organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   scanRun          SecurityScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
   evidences        Evidence[]
+  controlResults   ControlResult[]
 
   @@unique([scanRunId, checkId, checkVersion, resourceIdentity, attempt])
   @@index([organizationId, scanRunId, createdAt])
   @@index([scanRunId, resourceIdentity])
+}
+
+model ControlResult {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @db.Uuid
+  scanRunId          String             @db.Uuid
+  scanCheckOutcomeId String?            @db.Uuid
+  evidenceId         String?            @db.Uuid
+  checkId            String             @db.VarChar(120)
+  checkVersion       String             @db.VarChar(32)
+  evaluatorVersion   String             @db.VarChar(32)
+  provider           String             @db.VarChar(80)
+  service            String             @db.VarChar(80)
+  operation          String             @db.VarChar(160)
+  resourceKey        String             @db.VarChar(512)
+  status             String             @db.VarChar(32)
+  observedAt         DateTime
+  coverage           String             @db.VarChar(500)
+  dataQuality        String             @db.VarChar(80)
+  message            String             @db.VarChar(1000)
+  errorCode          String?            @db.VarChar(80)
+  evidenceHash       String?            @db.VarChar(64)
+  canonicalizationVersion String?       @db.VarChar(32)
+  provenance         Json               @default("{}")
+  remediation        Json?
+  soc2Mapping        Json?
+  attempt            Int                @default(1)
+  correlationId      String             @db.VarChar(128)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  scanRun            SecurityScanRun    @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+  scanCheckOutcome   ScanCheckOutcome?  @relation(fields: [scanCheckOutcomeId], references: [id], onDelete: SetNull)
+  evidence           Evidence?          @relation(fields: [evidenceId], references: [id], onDelete: SetNull)
+
+  @@unique([scanRunId, checkId, checkVersion, resourceKey, attempt])
+  @@index([organizationId, checkId, status, observedAt])
+  @@index([organizationId, resourceKey, observedAt])
 }
 
 model Evidence {
@@ -591,6 +631,7 @@ model Evidence {
   supersededBy             Evidence[]              @relation("EvidenceSupersession")
   observedFacts            ObservedFact[]
   legalHolds               EvidenceLegalHold[]
+  controlResults           ControlResult[]
 
   @@unique([organizationId, contentHash, type, sourceIntegrationId])
   @@index([organizationId, scanRunId, createdAt])

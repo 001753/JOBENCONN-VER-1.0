@@ -3,6 +3,25 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { AppError } from "./errors.js";
 import { requirePermission, type Permission } from "./authorization.js";
 import { AuditEventRepository, customerContext, systemContext, type OrganizationContext } from "./persistence.js";
+import { EvidenceService } from "./evidence-service.js";
+import {
+  DefaultAwsReadOnlyDiscoveryClientFactory,
+  type AwsReadOnlyDiscoveryClientFactory,
+} from "./aws-service.js";
+import { classifyAwsError } from "./aws.js";
+import {
+  evaluateRootMfa,
+  ROOT_MFA_CHECK_ID,
+  ROOT_MFA_CHECK_VERSION,
+  ROOT_MFA_COVERAGE,
+  ROOT_MFA_EVALUATOR_VERSION,
+  ROOT_MFA_OPERATION,
+  ROOT_MFA_PERMISSION,
+  ROOT_MFA_PROVIDER,
+  ROOT_MFA_SCHEMA_VERSION,
+  ROOT_MFA_CONTROL_CONTRACT,
+  rootMfaResourceKey,
+} from "./root-mfa-control.js";
 import {
   applicableSecurityRules,
   SECURITY_RULES,
@@ -15,6 +34,7 @@ import { calculateProgress } from "./scan-orchestration.js";
 type Db = PrismaClient | Prisma.TransactionClient;
 type SecurityFindingRecord = Prisma.SecurityFindingGetPayload<object>;
 type SecurityScanRunRecord = Prisma.SecurityScanRunGetPayload<object>;
+type ControlResultRecord = Prisma.ControlResultGetPayload<object>;
 
 export interface SecurityAuthorization {
   readonly actorUserId: string;
@@ -189,6 +209,37 @@ function toPublicFinding(finding: SecurityFindingRecord) {
   };
 }
 
+function toPublicControlResult(result: ControlResultRecord) {
+  return {
+    id: result.id,
+    organizationId: result.organizationId,
+    scanRunId: result.scanRunId,
+    scanCheckOutcomeId: result.scanCheckOutcomeId,
+    evidenceId: result.evidenceId,
+    checkId: result.checkId,
+    checkVersion: result.checkVersion,
+    evaluatorVersion: result.evaluatorVersion,
+    provider: result.provider,
+    service: result.service,
+    operation: result.operation,
+    resourceKey: result.resourceKey,
+    status: result.status,
+    observedAt: result.observedAt,
+    coverage: result.coverage,
+    dataQuality: result.dataQuality,
+    message: result.message,
+    errorCode: result.errorCode,
+    evidenceHash: result.evidenceHash,
+    canonicalizationVersion: result.canonicalizationVersion,
+    provenance: result.provenance,
+    remediation: result.remediation,
+    soc2Mapping: result.soc2Mapping,
+    attempt: result.attempt,
+    correlationId: result.correlationId,
+    createdAt: result.createdAt,
+  };
+}
+
 function findingIdentity(finding: { ruleId: string; ruleVersion: string; awsAccountId: string; region: string; resourceId: string }): string {
   return [finding.ruleId, finding.ruleVersion, finding.awsAccountId, finding.region, finding.resourceId].join("|");
 }
@@ -212,6 +263,8 @@ export class SecurityAnalysisService {
   constructor(
     private readonly db: PrismaClient,
     private readonly rules: readonly SecurityRule[] = SECURITY_RULES,
+    private readonly controlClients?: AwsReadOnlyDiscoveryClientFactory,
+    private readonly evidence = new EvidenceService(db),
   ) {}
 
   async enqueueScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey: string | undefined, triggerType = "MANUAL") {
@@ -483,6 +536,18 @@ export class SecurityAnalysisService {
       let rulesEvaluated = 0;
       let completedChecks = 0;
       let failedChecks = 0;
+      let rootMfaExecuted = false;
+
+      if (this.controlClients) {
+        const rootMfa = await this.executeRootMfaControl(auth, account, scan, executionAttempt);
+        rootMfaExecuted = true;
+        if (rootMfa.status === "ERROR") {
+          errors.push({ resourceId: rootMfa.resourceKey, ruleId: ROOT_MFA_CHECK_ID, category: rootMfa.errorCode ?? "CONTROL_ERROR" });
+          failedChecks += 1;
+        } else {
+          completedChecks += 1;
+        }
+      }
 
       for (const resource of activeResources) {
         const cancellation = await this.db.securityScanRun.findUnique({ where: { id: scan.id }, select: { status: true } });
@@ -658,7 +723,7 @@ export class SecurityAnalysisService {
             durationMs: scan.startedAt ? Math.max(0, finishedAt.getTime() - scan.startedAt.getTime()) : null,
             ...(status === "CANCELLED" ? { terminalReason: "client_requested" } : {}),
             totalResources: allResources.length,
-            totalChecks: activeResources.reduce((total, resource) => total + applicableSecurityRules(resource, activeRules).length, 0),
+            totalChecks: activeResources.reduce((total, resource) => total + applicableSecurityRules(resource, activeRules).length, 0) + (rootMfaExecuted ? 1 : 0),
             completedChecks,
             failedChecks,
             evaluatedResources,
@@ -884,6 +949,68 @@ export class SecurityAnalysisService {
     });
   }
 
+  async listControlResults(auth: SecurityAuthorization, scanId?: string) {
+    requireSecurityPermission(auth, "findings.read");
+    if (scanId) {
+      safeUuid(scanId, "scanId");
+      const scan = await this.db.securityScanRun.findFirst({ where: { id: scanId, organizationId: auth.organizationId }, select: { id: true } });
+      if (!scan) throw new AppError("NOT_FOUND", "Security scan not found.");
+    }
+    const results = await this.db.controlResult.findMany({
+      where: { organizationId: auth.organizationId, ...(scanId ? { scanRunId: scanId } : {}) },
+      orderBy: [{ observedAt: "desc" }, { createdAt: "desc" }],
+      take: 1_000,
+    });
+    return results.map(toPublicControlResult);
+  }
+
+  async getControlResult(auth: SecurityAuthorization, resultId: string) {
+    requireSecurityPermission(auth, "findings.read");
+    safeUuid(resultId, "controlResultId");
+    const result = await this.db.controlResult.findFirst({ where: { id: resultId, organizationId: auth.organizationId } });
+    if (!result) throw new AppError("NOT_FOUND", "Control result not found.");
+    return toPublicControlResult(result);
+  }
+
+  async getDashboardSummary(auth: SecurityAuthorization) {
+    requireSecurityPermission(auth, "organization.read");
+    const organizationId = auth.organizationId;
+    const [accounts, openFindings, criticalFindings, scans, evidence, controls] = await Promise.all([
+      this.db.awsAccount.count({ where: { organizationId, status: "ACTIVE" } }),
+      this.db.securityFinding.count({ where: { organizationId, status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+      this.db.securityFinding.count({ where: { organizationId, severity: "CRITICAL", status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
+      this.db.securityScanRun.findFirst({ where: { organizationId }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, finishedAt: true, correlationId: true } }),
+      this.db.evidence.findFirst({ where: { organizationId }, orderBy: { createdAt: "desc" }, select: { id: true, integrityStatus: true, collectedAt: true, contentHash: true } }),
+      this.db.controlResult.findMany({ where: { organizationId }, orderBy: { observedAt: "desc" }, distinct: ["checkId", "resourceKey"], take: 1_000, select: { checkId: true, status: true, observedAt: true, message: true, evidenceId: true, resourceKey: true } }),
+    ]);
+    const latestByControl = new Map<string, typeof controls[number]>();
+    for (const control of controls) {
+      const key = `${control.checkId}:${control.resourceKey}`;
+      if (!latestByControl.has(key)) latestByControl.set(key, control);
+    }
+    const currentControls = [...latestByControl.values()];
+    return {
+      organizationId,
+      source: "backend",
+      accounts,
+      findings: { open: openFindings, critical: criticalFindings },
+      controls: {
+        evaluated: currentControls.length,
+        pass: currentControls.filter((control) => control.status === "PASS").length,
+        fail: currentControls.filter((control) => control.status === "FAIL").length,
+        error: currentControls.filter((control) => control.status === "ERROR").length,
+        notApplicable: currentControls.filter((control) => control.status === "NOT_APPLICABLE").length,
+      },
+      latestScan: scans,
+      latestEvidence: evidence,
+      latestControlResults: currentControls,
+      states: {
+        posture: currentControls.length === 0 ? "NOT_EVALUATED" : currentControls.some((control) => control.status === "ERROR") ? "INSUFFICIENT_EVIDENCE" : currentControls.some((control) => control.status === "FAIL") ? "ACTION_REQUIRED" : "OBSERVED",
+        complianceScore: "NOT_CALCULATED",
+      },
+    };
+  }
+
   async listFindings(auth: SecurityAuthorization, filters: FindingFilters) {
     requireSecurityPermission(auth, "findings.read");
     const where: Prisma.SecurityFindingWhereInput = {
@@ -981,6 +1108,211 @@ export class SecurityAnalysisService {
     const finding = await this.db.securityFinding.findFirst({ where: { id: findingId, organizationId: auth.organizationId } });
     if (!finding) throw new AppError("NOT_FOUND", "Security finding not found.");
     return finding;
+  }
+
+  private async executeRootMfaControl(
+    auth: SecurityAuthorization,
+    account: { id: string; connectionId: string; awsAccountId: string },
+    scan: SecurityScanRunRecord,
+    attempt: number,
+  ): Promise<{ status: string; resourceKey: string; errorCode?: string }> {
+    const startedAt = new Date();
+    const resourceKey = rootMfaResourceKey(account.awsAccountId);
+    const outcome = await this.db.scanCheckOutcome.create({
+      data: {
+        organizationId: auth.organizationId,
+        scanRunId: scan.id,
+        checkId: ROOT_MFA_CHECK_ID,
+        checkVersion: ROOT_MFA_CHECK_VERSION,
+        resourceIdentity: resourceKey,
+        status: "RUNNING",
+        startedAt,
+        finishedAt: startedAt,
+        durationMs: 0,
+        attempt,
+        correlationId: scan.correlationId,
+      },
+    });
+    const audit = new AuditEventRepository(this.db);
+    await audit.append(auth.context, {
+      actorUserId: auth.actorUserId,
+      action: "CONTROL_EXECUTION_STARTED",
+      purpose: "execute first real AWS security control",
+      targetType: "scan_check_outcome",
+      targetId: outcome.id,
+      result: "SUCCESS",
+      correlationId: scan.correlationId,
+      metadata: { checkId: ROOT_MFA_CHECK_ID, checkVersion: ROOT_MFA_CHECK_VERSION, operation: ROOT_MFA_OPERATION, permission: ROOT_MFA_PERMISSION },
+    });
+
+    try {
+      const connection = await this.db.awsConnection.findFirst({ where: { id: account.connectionId, organizationId: auth.organizationId } });
+      if (!connection) throw new AppError("NOT_FOUND", "AWS connection not found.");
+      const client = this.controlClients?.create(connection);
+      if (!client?.getRootMfaObservation) throw new AppError("NOT_IMPLEMENTED", "The configured AWS provider does not expose the root MFA contract.");
+      const observation = await client.getRootMfaObservation(account.awsAccountId);
+      await audit.append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "CONTROL_PROVIDER_REQUEST_COMPLETED",
+        purpose: "record authoritative AWS control observation",
+        targetType: "scan_check_outcome",
+        targetId: outcome.id,
+        result: "SUCCESS",
+        correlationId: scan.correlationId,
+        metadata: { provider: ROOT_MFA_PROVIDER, operation: ROOT_MFA_OPERATION, observedAt: observation.observedAt.toISOString() },
+      });
+      const committed = await this.evidence.commitForScan(systemContext(auth.actorUserId), {
+        sourceIntegrationId: connection.id,
+        scanRunId: scan.id,
+        scanCheckOutcomeId: outcome.id,
+        type: "SCAN_CHECK",
+        provider: ROOT_MFA_PROVIDER,
+        schemaVersion: ROOT_MFA_SCHEMA_VERSION,
+        ...(observation.requestId ? { providerRequestId: observation.requestId } : {}),
+        sourceEndpoint: ROOT_MFA_OPERATION,
+        collectedAt: observation.observedAt,
+        retentionUntil: new Date(observation.observedAt.getTime() + 7 * 365 * 24 * 60 * 60 * 1_000),
+        payload: {
+          accountId: observation.accountId,
+          service: "IAM",
+          operation: ROOT_MFA_OPERATION,
+          mfaEnabled: observation.mfaEnabled,
+          ...(observation.requestId ? { requestId: observation.requestId } : {}),
+        },
+        observedFacts: [{
+          provider: ROOT_MFA_PROVIDER,
+          resourceKey,
+          observedAt: observation.observedAt,
+          payloadSchema: ROOT_MFA_SCHEMA_VERSION,
+          extractedFields: { mfaEnabled: observation.mfaEnabled, coverage: ROOT_MFA_COVERAGE },
+        }],
+        correlationId: scan.correlationId,
+      });
+      const verified = await this.evidence.verify({ auth: systemContext(auth.actorUserId), correlationId: scan.correlationId }, committed.id);
+      if (verified.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Root MFA evidence failed integrity verification.");
+      const evaluation = evaluateRootMfa(observation);
+      const result = await this.persistRootMfaResult(auth, scan, outcome.id, attempt, evaluation, verified.id, verified.contentHash, observation.observedAt);
+      await audit.append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "CONTROL_EVALUATED",
+        purpose: "persist deterministic root MFA evaluation",
+        targetType: "control_result",
+        targetId: result.id,
+        result: evaluation.status === "ERROR" ? "FAILURE" : "SUCCESS",
+        ...(evaluation.errorCode ? { reason: evaluation.errorCode } : {}),
+        correlationId: scan.correlationId,
+        metadata: { checkId: ROOT_MFA_CHECK_ID, status: evaluation.status, evidenceId: verified.id, evidenceHash: verified.contentHash },
+      });
+      return { status: evaluation.status, resourceKey };
+    } catch (error) {
+      const errorCode = error instanceof AppError && error.code === "SCHEMA_ERROR"
+        ? "SCHEMA_DRIFT"
+        : error instanceof AppError && error.code === "INTEGRITY_ERROR"
+          ? "EVIDENCE_INTEGRITY_FAILED"
+          : error instanceof AppError && error.code === "NOT_IMPLEMENTED"
+            ? "PROVIDER_CONTRACT_UNAVAILABLE"
+            : classifyAwsError(error instanceof AppError ? error.cause : error);
+      const finishedAt = new Date();
+      await this.db.scanCheckOutcome.update({ where: { id: outcome.id }, data: { status: "ERROR", errorClass: errorCode, errorMessage: "Root MFA control could not obtain verified evidence.", finishedAt, durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()) } });
+      await this.db.controlResult.create({
+        data: {
+          organizationId: auth.organizationId,
+          scanRunId: scan.id,
+          scanCheckOutcomeId: outcome.id,
+          checkId: ROOT_MFA_CHECK_ID,
+          checkVersion: ROOT_MFA_CHECK_VERSION,
+          evaluatorVersion: ROOT_MFA_EVALUATOR_VERSION,
+          provider: ROOT_MFA_PROVIDER,
+          service: "IAM",
+          operation: ROOT_MFA_OPERATION,
+          resourceKey,
+          status: "ERROR",
+          observedAt: finishedAt,
+          coverage: ROOT_MFA_COVERAGE,
+          dataQuality: "UNAVAILABLE",
+          message: "Root MFA control has insufficient verified evidence.",
+          errorCode,
+          provenance: { organizationId: auth.organizationId, awsAccountId: account.awsAccountId, scanRunId: scan.id, scanCheckOutcomeId: outcome.id, checkId: ROOT_MFA_CHECK_ID, checkVersion: ROOT_MFA_CHECK_VERSION, evaluatorVersion: ROOT_MFA_EVALUATOR_VERSION, observedAt: finishedAt.toISOString(), provider: ROOT_MFA_PROVIDER, operation: ROOT_MFA_OPERATION, coverage: ROOT_MFA_COVERAGE, dataQuality: "UNAVAILABLE", sourceRevision: ROOT_MFA_CONTROL_CONTRACT.fixtureReference },
+          soc2Mapping: ROOT_MFA_CONTROL_CONTRACT.soc2Mapping,
+          attempt,
+          correlationId: scan.correlationId,
+        },
+      });
+      await audit.append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "CONTROL_EXECUTION_FAILED",
+        purpose: "retain root MFA control error without unsafe PASS",
+        targetType: "scan_check_outcome",
+        targetId: outcome.id,
+        result: "FAILURE",
+        reason: errorCode,
+        correlationId: scan.correlationId,
+        metadata: { checkId: ROOT_MFA_CHECK_ID },
+      });
+      return { status: "ERROR", resourceKey, errorCode };
+    }
+  }
+
+  private async persistRootMfaResult(
+    auth: SecurityAuthorization,
+    scan: SecurityScanRunRecord,
+    outcomeId: string,
+    attempt: number,
+    evaluation: ReturnType<typeof evaluateRootMfa>,
+    evidenceId: string,
+    evidenceHash: string,
+    observedAt: Date,
+  ): Promise<ControlResultRecord> {
+    const result = await this.db.controlResult.create({
+      data: {
+        organizationId: auth.organizationId,
+        scanRunId: scan.id,
+        scanCheckOutcomeId: outcomeId,
+        evidenceId,
+        checkId: ROOT_MFA_CHECK_ID,
+        checkVersion: ROOT_MFA_CHECK_VERSION,
+        evaluatorVersion: ROOT_MFA_EVALUATOR_VERSION,
+        provider: ROOT_MFA_PROVIDER,
+        service: "IAM",
+        operation: ROOT_MFA_OPERATION,
+        resourceKey: evaluation.resourceKey,
+        status: evaluation.status,
+        observedAt,
+        coverage: evaluation.coverage,
+        dataQuality: evaluation.dataQuality,
+        message: evaluation.message,
+        ...(evaluation.errorCode ? { errorCode: evaluation.errorCode } : {}),
+        evidenceHash,
+        canonicalizationVersion: "JCS-1",
+        provenance: {
+          organizationId: auth.organizationId,
+          awsAccountId: scan.accountId,
+          scanRunId: scan.id,
+          scanCheckOutcomeId: outcomeId,
+          checkId: ROOT_MFA_CHECK_ID,
+          checkVersion: ROOT_MFA_CHECK_VERSION,
+          evaluatorVersion: ROOT_MFA_EVALUATOR_VERSION,
+          observedAt: observedAt.toISOString(),
+          provider: ROOT_MFA_PROVIDER,
+          operation: ROOT_MFA_OPERATION,
+          coverage: evaluation.coverage,
+          dataQuality: evaluation.dataQuality,
+          evidenceId,
+          evidenceHash,
+          canonicalizationVersion: "JCS-1",
+          sourceRevision: ROOT_MFA_CONTROL_CONTRACT.fixtureReference,
+        },
+        ...(evaluation.remediation ? { remediation: evaluation.remediation } : {}),
+        soc2Mapping: evaluation.soc2Mapping,
+        attempt,
+        correlationId: scan.correlationId,
+      },
+    });
+    await this.db.scanCheckOutcome.update({
+      where: { id: outcomeId },
+      data: { status: evaluation.status, finishedAt: new Date(), durationMs: Math.max(0, Date.now() - scan.createdAt.getTime()) },
+    });
+    return result;
   }
 
   private async findAccount(auth: SecurityAuthorization, accountId: string) {

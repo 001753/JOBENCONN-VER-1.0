@@ -56,6 +56,26 @@ const awsSecuritySchema: ProviderSchema = {
   },
 };
 
+const awsRootMfaSchema: ProviderSchema = {
+  provider: "aws",
+  schemaVersion: "aws-root-mfa.v1",
+  validate(payload) {
+    const record = objectPayload(payload, "aws-root-mfa.v1 payload");
+    if (typeof record.accountId !== "string" || !/^\d{12}$/.test(record.accountId)) {
+      throw new AppError("SCHEMA_ERROR", "schema_error: aws-root-mfa.v1 requires a valid accountId");
+    }
+    if (record.service !== "IAM" || record.operation !== "IAM.GetAccountSummary") {
+      throw new AppError("SCHEMA_ERROR", "schema_error: aws-root-mfa.v1 requires the IAM GetAccountSummary operation");
+    }
+    if (typeof record.mfaEnabled !== "boolean") {
+      throw new AppError("SCHEMA_ERROR", "schema_error: aws-root-mfa.v1 requires boolean mfaEnabled");
+    }
+    if (record.requestId !== undefined && typeof record.requestId !== "string") {
+      throw new AppError("SCHEMA_ERROR", "schema_error: requestId must be a string");
+    }
+  },
+};
+
 const testSchema: ProviderSchema = {
   provider: "test",
   schemaVersion: "test.v1",
@@ -69,6 +89,7 @@ const schemas = new Map<string, ProviderSchema>([
   [`${awsProviderSchema.provider}:${awsProviderSchema.schemaVersion}`, awsProviderSchema],
   [`${awsDiscoverySchema.provider}:${awsDiscoverySchema.schemaVersion}`, awsDiscoverySchema],
   [`${awsSecuritySchema.provider}:${awsSecuritySchema.schemaVersion}`, awsSecuritySchema],
+  [`${awsRootMfaSchema.provider}:${awsRootMfaSchema.schemaVersion}`, awsRootMfaSchema],
   [`${testSchema.provider}:${testSchema.schemaVersion}`, testSchema],
 ]);
 

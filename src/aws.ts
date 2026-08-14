@@ -42,8 +42,16 @@ export interface NormalizedAwsResource {
   readonly metadata?: Record<string, unknown>;
 }
 
+export interface AwsRootMfaObservation {
+  readonly accountId: string;
+  readonly mfaEnabled: boolean;
+  readonly observedAt: Date;
+  readonly requestId?: string;
+}
+
 export interface AwsReadOnlyDiscoveryClient {
   getCallerIdentity(): Promise<AwsCallerIdentity>;
+  getRootMfaObservation?(accountId: string): Promise<AwsRootMfaObservation>;
   listRegions(): Promise<readonly AwsRegionDescription[]>;
   listEc2Resources(region: string, accountId: string): Promise<readonly NormalizedAwsResource[]>;
   listS3Resources(accountId: string): Promise<readonly NormalizedAwsResource[]>;
@@ -107,6 +115,21 @@ export class AwsSdkReadOnlyDiscoveryClient implements AwsReadOnlyDiscoveryClient
     validateAwsAccountId(accountId);
     if (!arn || !userId) throw new AppError("AWS_ERROR", "AWS caller identity was incomplete.");
     return { accountId, arn, userId };
+  }
+
+  async getRootMfaObservation(accountId: string): Promise<AwsRootMfaObservation> {
+    validateAwsAccountId(accountId);
+    const result = await retryAws(() => this.iam.send(new GetAccountSummaryCommand({})));
+    const value = result.SummaryMap?.AccountMFAEnabled;
+    if (value !== 0 && value !== 1) {
+      throw new AppError("SCHEMA_ERROR", "AWS IAM GetAccountSummary returned an invalid AccountMFAEnabled value.");
+    }
+    return {
+      accountId,
+      mfaEnabled: value === 1,
+      observedAt: new Date(),
+      ...(result.$metadata.requestId ? { requestId: result.$metadata.requestId } : {}),
+    };
   }
 
   async listRegions(): Promise<readonly AwsRegionDescription[]> {
