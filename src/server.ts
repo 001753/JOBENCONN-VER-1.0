@@ -178,7 +178,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     return customerAwsAuthorization({ actorUserId: actor.userId, organizationId: organization.organizationId, role: organization.role });
   };
 
-  const securityAuthorization = async (permission: "findings.read" | "findings.run" | "findings.acknowledge" | "findings.resolve") => {
+  const securityAuthorization = async (permission: "findings.read" | "findings.run" | "findings.acknowledge" | "findings.resolve" | "scan.read" | "scan.create" | "scan.cancel") => {
     const organizationId = actor.session.activeOrganizationId;
     if (!organizationId) throw new AppError("ORG_NOT_FOUND", "An active organization is required.");
     const organization = await identity.authorizeOrganization(actor, organizationId, permission, correlationId);
@@ -271,7 +271,31 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     if (!accountId) throw new AppError("NOT_FOUND", "Route not found.");
     if (method === "GET") {
       const auth = await securityAuthorization("findings.read");
-      sendJson(response, 200, { scans: await security.listScans(auth, accountId) });
+      const url = new URL(request.url ?? "/", "http://joben.local");
+      const parsePositive = (value: string | null, fallback: number, max: number, field: string): number => {
+        if (value === null) return fallback;
+        const parsed = Number(value);
+        if (!Number.isInteger(parsed) || parsed < 1 || parsed > max) throw new AppError("VALIDATION_ERROR", `${field} must be a positive integer within a safe range.`);
+        return parsed;
+      };
+      const status = url.searchParams.get("status") as "QUEUED" | "RUNNING" | "CANCELLING" | "COMPLETED" | "PARTIAL" | "FAILED" | "CANCELLED" | "DEAD_LETTER" | null;
+      const validStatuses = ["QUEUED", "RUNNING", "CANCELLING", "COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DEAD_LETTER"] as const;
+      if (status && !validStatuses.includes(status)) throw new AppError("VALIDATION_ERROR", "status is invalid.");
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      const parseDate = (value: string | null, field: string): Date | undefined => {
+        if (!value) return undefined;
+        const parsed = new Date(value);
+        if (Number.isNaN(parsed.getTime())) throw new AppError("VALIDATION_ERROR", `${field} must be an ISO date.`);
+        return parsed;
+      };
+      sendJson(response, 200, await security.listScans(auth, accountId, {
+        page: parsePositive(url.searchParams.get("page"), 1, 1_000_000, "page"),
+        pageSize: parsePositive(url.searchParams.get("pageSize"), 50, 100, "pageSize"),
+        ...(status ? { status } : {}),
+        ...(from ? { from: parseDate(from, "from") } : {}),
+        ...(to ? { to: parseDate(to, "to") } : {}),
+      }));
       return;
     }
     if (method === "POST") {
@@ -279,9 +303,15 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
       const body = await readJson(request);
       const auth = await securityAuthorization("findings.run");
       const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined;
-      sendJson(response, 202, { scan: await security.runScan(auth, accountId, correlationId, idempotencyKey) });
+      sendJson(response, 202, { scan: await security.enqueueScan(auth, accountId, correlationId, idempotencyKey) });
       return;
     }
+  }
+
+  if (path === "/security/queue" && method === "GET") {
+    const auth = await securityAuthorization("scan.read");
+    sendJson(response, 200, { backlog: await security.queueBacklog(auth) });
+    return;
   }
 
   const scanDetailMatch = /^\/security\/scans\/([^/]+)$/.exec(path);
@@ -290,6 +320,25 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     if (!scanId) throw new AppError("NOT_FOUND", "Route not found.");
     const auth = await securityAuthorization("findings.read");
     sendJson(response, 200, { scan: await security.getScan(auth, scanId) });
+    return;
+  }
+
+  const scanProgressMatch = /^\/security\/scans\/([^/]+)\/progress$/.exec(path);
+  if (scanProgressMatch && method === "GET") {
+    const scanId = scanProgressMatch[1];
+    if (!scanId) throw new AppError("NOT_FOUND", "Route not found.");
+    const auth = await securityAuthorization("scan.read");
+    sendJson(response, 200, { scan: await security.getScanProgress(auth, scanId) });
+    return;
+  }
+
+  const scanCancelMatch = /^\/security\/scans\/([^/]+)\/cancel$/.exec(path);
+  if (scanCancelMatch && method === "POST") {
+    const scanId = scanCancelMatch[1];
+    if (!scanId) throw new AppError("NOT_FOUND", "Route not found.");
+    await requireCsrf();
+    const auth = await securityAuthorization("scan.cancel");
+    sendJson(response, 202, { scan: await security.cancelScan(auth, scanId, correlationId) });
     return;
   }
 

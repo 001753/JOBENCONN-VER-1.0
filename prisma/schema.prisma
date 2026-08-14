@@ -81,10 +81,21 @@ enum AwsResourceStatus {
 enum DiscoveryRunStatus {
   QUEUED
   RUNNING
+  CANCELLING
   COMPLETED
   PARTIAL
   FAILED
   CANCELLED
+  DEAD_LETTER
+}
+
+enum ScanJobStatus {
+  QUEUED
+  RUNNING
+  RETRY_WAIT
+  COMPLETED
+  CANCELLED
+  DEAD_LETTER
 }
 
 enum SecurityFindingSeverity {
@@ -111,6 +122,7 @@ model User {
   memberships         Membership[]
   invitationsAccepted Invitation[]        @relation("InvitationAcceptedBy")
   auditEvents         AuditEvent[]        @relation("AuditActor")
+  scanRunsRequested   SecurityScanRun[]   @relation("ScanRequestedBy")
   idempotencyRecords  IdempotencyRecord[]
   sessions            Session[]
 
@@ -158,6 +170,9 @@ model Organization {
   discoveryRuns       DiscoveryRun[]
   securityFindings    SecurityFinding[]
   securityScanRuns    SecurityScanRun[]
+  scanJobs            ScanJob[]
+  scanCheckOutcomes   ScanCheckOutcome[]
+  scanEvents          ScanEvent[]
 
   @@index([status])
 }
@@ -277,6 +292,7 @@ model AwsConnection {
   callerArn         String?             @db.VarChar(2048)
   callerUserId      String?             @db.VarChar(512)
   lastErrorCategory String?             @db.VarChar(80)
+  scanFailureStreak Int                 @default(0)
   lastVerifiedAt    DateTime?           @db.Timestamptz(3)
   createdAt         DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
@@ -284,6 +300,7 @@ model AwsConnection {
   accounts          AwsAccount[]
   resources         AwsResource[]
   discoveryRuns     DiscoveryRun[]
+  securityScanRuns  SecurityScanRun[]
 
   @@unique([organizationId, name])
   @@index([organizationId, status])
@@ -306,6 +323,7 @@ model AwsAccount {
   discoveryRuns    DiscoveryRun[]
   securityFindings SecurityFinding[]
   securityScanRuns SecurityScanRun[]
+  scanJobs        ScanJob[]
 
   @@unique([organizationId, awsAccountId])
   @@index([connectionId, status])
@@ -387,30 +405,119 @@ model SecurityScanRun {
   id                   String             @id @default(uuid()) @db.Uuid
   organizationId       String             @db.Uuid
   accountId            String             @db.Uuid
+  connectionId         String             @db.Uuid
+  requestedByUserId    String?            @db.Uuid
   discoveryRunId       String?            @db.Uuid
   status               DiscoveryRunStatus @default(RUNNING)
+  triggerType          String             @default("MANUAL") @db.VarChar(32)
   idempotencyKey       String             @unique @db.VarChar(255)
+  activeKey            String?            @unique @db.VarChar(120)
   snapshotFingerprint  String             @db.VarChar(128)
-  startedAt            DateTime           @default(now()) @db.Timestamptz(3)
+  startedAt            DateTime?          @db.Timestamptz(3)
   finishedAt           DateTime?
+  durationMs           Int?
   totalResources       Int                @default(0)
   evaluatedResources   Int                @default(0)
   insufficientEvidence Int                @default(0)
   failedResources      Int                @default(0)
+  totalChecks          Int?
+  completedChecks      Int                @default(0)
+  failedChecks         Int                @default(0)
+  skippedChecks        Int                @default(0)
   rulesEvaluated       Int                @default(0)
   findingsCreated      Int                @default(0)
   findingsResolved     Int                @default(0)
+  retryCount           Int                @default(0)
+  lastErrorCategory    String?            @db.VarChar(80)
+  lastError            String?             @db.VarChar(500)
+  cancelRequestedAt    DateTime?
+  terminalReason       String?            @db.VarChar(255)
+  leaseOwner           String?            @db.VarChar(128)
+  leaseAcquiredAt      DateTime?
+  leaseExpiresAt       DateTime?
   ruleErrors           Json               @default("[]")
   correlationId        String             @db.VarChar(128)
   createdAt            DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
   organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   account              AwsAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  connection           AwsConnection      @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  requestedBy          User?              @relation("ScanRequestedBy", fields: [requestedByUserId], references: [id], onDelete: SetNull)
   discoveryRun         DiscoveryRun?      @relation(fields: [discoveryRunId], references: [id], onDelete: SetNull)
   findings             SecurityFinding[]
+  job                  ScanJob?
+  outcomes             ScanCheckOutcome[]
+  events               ScanEvent[]
 
   @@index([organizationId, accountId, createdAt])
   @@index([organizationId, status, createdAt])
+  @@index([organizationId, connectionId, status])
+  @@index([leaseExpiresAt, status])
+}
+
+model ScanJob {
+  id             String        @id @default(uuid()) @db.Uuid
+  scanRunId      String        @unique @db.Uuid
+  organizationId String        @db.Uuid
+  accountId      String        @db.Uuid
+  status         ScanJobStatus @default(QUEUED)
+  attempt        Int           @default(0)
+  availableAt    DateTime      @default(now()) @db.Timestamptz(3)
+  leasedAt       DateTime?
+  leaseExpiresAt DateTime?
+  workerId       String?       @db.VarChar(128)
+  lastError      String?       @db.VarChar(500)
+  correlationId  String        @db.VarChar(128)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(3)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account        AwsAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  scanRun        SecurityScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+
+  @@index([status, availableAt, createdAt])
+  @@index([organizationId, status, createdAt])
+  @@index([leaseExpiresAt, status])
+  @@index([scanRunId])
+}
+
+model ScanCheckOutcome {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @db.Uuid
+  scanRunId        String   @db.Uuid
+  checkId          String   @db.VarChar(120)
+  checkVersion     String   @db.VarChar(32)
+  resourceIdentity String   @db.VarChar(512)
+  status           String   @db.VarChar(32)
+  startedAt        DateTime @db.Timestamptz(3)
+  finishedAt       DateTime @db.Timestamptz(3)
+  durationMs       Int
+  errorClass       String?  @db.VarChar(80)
+  errorMessage     String?  @db.VarChar(500)
+  attempt          Int      @default(1)
+  correlationId    String   @db.VarChar(128)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  scanRun          SecurityScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+
+  @@unique([scanRunId, checkId, checkVersion, resourceIdentity, attempt])
+  @@index([organizationId, scanRunId, createdAt])
+  @@index([scanRunId, resourceIdentity])
+}
+
+model ScanEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @db.Uuid
+  scanRunId      String   @db.Uuid
+  eventType      String   @db.VarChar(64)
+  correlationId  String   @db.VarChar(128)
+  payload        Json     @default("{}")
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  scanRun        SecurityScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
+
+  @@unique([scanRunId, eventType])
+  @@index([organizationId, createdAt])
+  @@index([scanRunId, createdAt])
 }
 
 model SecurityFinding {

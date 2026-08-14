@@ -1,0 +1,1902 @@
+MASTER PROMPT 06
+JOBEN ENTERPRISE
+SCAN ORCHESTRATION & JOB ORCHESTRATOR
+
+============================================================
+EXECUTION MODE
+============================================================
+
+CONTINUE EXISTING REPOSITORY.
+
+JANGAN BUILD DARI 0.
+
+JANGAN REBUILD MODUL YANG SUDAH ADA.
+
+JANGAN MENGGANTI ARSITEKTUR TANPA ALASAN TEKNIS YANG TERBUKTI.
+
+JANGAN MEMBUAT MOCK/SIMULASI SEBAGAI PENGGANTI REAL WORK.
+
+IMPLEMENT REAL WORK.
+
+TARGET:
+COMPLETED
+PRODUCTION-GRADE
+RESPONSIVE
+POWERFUL
+DETERMINISTIC
+SECURE
+RECOVERABLE
+CREDIT-EFFICIENT
+
+STACK CONTRACT:
+- Node.js 24
+- TypeScript
+- PostgreSQL
+- Prisma
+- gunakan dependency existing
+- tambahkan dependency hanya jika benar-benar diperlukan
+
+============================================================
+1. MASTER PRD IS SOURCE OF TRUTH
+============================================================
+
+Gunakan:
+
+/DOC/PRD-JOBEN-ENTERPRISE.md
+
+sebagai sumber kebenaran utama.
+
+Jangan mengarang:
+
+- state
+- endpoint
+- provider behavior
+- permission
+- retry semantics
+- lifecycle
+- compliance claim
+
+Jika repository existing berbeda dengan PRD:
+
+audit dahulu.
+
+Pertahankan implementasi yang sudah benar.
+
+Perbaiki hanya gap yang diperlukan.
+
+Jika terdapat ambiguity:
+
+ikuti PRD + existing architecture,
+kemudian dokumentasikan decision.
+
+============================================================
+2. POSITION DALAM ROADMAP
+============================================================
+
+Ini adalah:
+
+MASTER PROMPT 06
+
+Fokus:
+
+SCAN ORCHESTRATION
+
+PRD module:
+
+M-03 — Scan & Job Orchestrator
+
+Bukan:
+
+M-07 Evidence
+M-08 Controls
+M-09 Remediation
+M-10 Dashboard
+M-11 Report
+M-12 Notification sebagai modul penuh
+
+Namun orchestration harus menyediakan
+event/boundary yang diperlukan modul berikutnya.
+
+JANGAN mengambil scope modul berikutnya.
+
+============================================================
+3. DEPENDENCY
+============================================================
+
+Gunakan foundation yang sudah tersedia dari
+Master Prompt 01–05.
+
+Expected existing capabilities:
+
+- repository baseline
+- PostgreSQL
+- Prisma
+- organization/tenant
+- authentication
+- RBAC
+- audit
+- security foundation
+- provider contract
+- AWS integration/credential flow
+- provider adapter
+- verification
+
+JANGAN rebuild capability tersebut.
+
+Audit implementasi aktual terlebih dahulu.
+
+============================================================
+4. FIRST STEP — REPOSITORY AUDIT
+============================================================
+
+SEBELUM CODING:
+
+periksa seluruh repository.
+
+Cari:
+
+- ScanRun
+- Job
+- queue
+- worker
+- scheduler
+- integration
+- provider adapter
+- AWS adapter
+- credential verification
+- existing scan endpoint
+- existing scan service
+- existing audit
+- existing RBAC
+- existing tenant repository
+- Prisma schema
+- migrations
+- tests
+- capability registry
+- documentation
+
+Buat internal matrix:
+
+EXISTS + VERIFIED
+EXISTS + PARTIAL
+EXISTS + BROKEN
+MISSING
+
+JANGAN mengimplementasikan ulang
+EXISTS + VERIFIED.
+
+============================================================
+5. CORE CONTRACT
+============================================================
+
+Core lifecycle:
+
+SCHEDULE / SCAN NOW
+        ↓
+IDEMPOTENCY CHECK
+        ↓
+QUEUE
+        ↓
+LEASE
+        ↓
+WORKER
+        ↓
+RUNNING
+        ↓
+PROGRESS
+        ↓
+CHECK EXECUTION
+        ↓
+PERSIST APPEND-ONLY OUTCOME
+        ↓
+AGGREGATE
+        ↓
+EVENT/NOTIFICATION BOUNDARY
+        ↓
+COMPLETED / PARTIAL / FAILED / CANCELLED
+
+Lifecycle ini harus dapat dijalankan
+tanpa intervensi database manual.
+
+============================================================
+6. SOURCE OF TRUTH
+============================================================
+
+Canonical source of truth:
+
+ScanRun / Job Ledger
+
+Run state dan lifecycle harus tersimpan
+di PostgreSQL.
+
+Jangan menjadikan:
+
+- frontend state
+- memory worker
+- Redis-only state
+- log text
+
+sebagai source of truth.
+
+Jika worker mati:
+
+database state tetap dapat dipulihkan.
+
+============================================================
+7. SCANRUN
+============================================================
+
+Pastikan ScanRun mampu merepresentasikan:
+
+- organization
+- integration
+- provider
+- requestedBy / actor bila applicable
+- trigger type
+- idempotency key
+- correlation ID
+- status
+- timestamps
+- startedAt
+- finishedAt
+- duration
+- progress
+- total checks/resources bila diketahui
+- successful checks
+- failed checks
+- skipped checks
+- error information
+- retry information
+- cancellation state
+- lease information
+- worker ownership bila diperlukan
+- terminal reason
+
+Gunakan schema existing bila sudah tersedia.
+
+Jangan membuat duplicate ScanRun model.
+
+============================================================
+8. REQUIRED STATES
+============================================================
+
+Server-side state machine WAJIB:
+
+queued
+running
+cancelling
+completed
+partial
+failed
+cancelled
+dead_letter
+
+Tidak boleh ada transition bebas.
+
+Transition harus divalidasi server-side.
+
+============================================================
+9. STATE TRANSITION RULES
+============================================================
+
+Canonical:
+
+queued
+→ running
+
+running
+→ cancelling
+
+cancelling
+→ cancelled
+
+running
+→ completed
+
+running
+→ partial
+
+running
+→ failed
+
+queued/running/failed
+→ dead_letter
+
+Hanya transition yang valid.
+
+Terminal states:
+
+completed
+partial
+failed
+cancelled
+dead_letter
+
+Terminal state tidak boleh
+kembali ke running secara langsung.
+
+Recovery harus menggunakan
+mekanisme resmi yang terdokumentasi.
+
+============================================================
+10. WORKER AUTHORITY
+============================================================
+
+Hanya worker yang memegang valid lease
+boleh melakukan execution transition.
+
+Client/frontend TIDAK BOLEH:
+
+- set scan menjadi completed
+- set scan menjadi failed
+- set scan menjadi running
+- memalsukan progress
+- memalsukan duration
+- memalsukan result
+
+API client hanya:
+
+request
+cancel
+query
+poll
+
+Worker adalah executor authority.
+
+============================================================
+11. SCAN NOW
+============================================================
+
+Implementasikan Scan Now.
+
+Flow:
+
+POST Scan Now
+→ authenticate
+→ authorize
+→ validate integration
+→ validate provider readiness
+→ idempotency check
+→ create/reuse ScanRun
+→ enqueue
+→ return accepted/run reference
+→ worker executes
+→ client polls status
+
+Untuk check ringan boleh synchronous
+jika architecture existing memang mendukung.
+
+Untuk scan berat:
+
+enqueue + polling.
+
+Jangan memblok HTTP request
+selama full scan.
+
+============================================================
+12. IDEMPOTENCY
+============================================================
+
+Duplicate invocation harus menghasilkan
+SATU logical ScanRun.
+
+Idempotency key harus:
+
+tenant-scoped.
+
+Tidak boleh:
+
+Organization A
+key = "abc"
+
+mengganggu:
+
+Organization B
+key = "abc".
+
+Gunakan unique constraint/database guarantee
+jika sesuai.
+
+JANGAN mengandalkan memory map.
+
+============================================================
+13. IDEMPOTENCY SEMANTICS
+============================================================
+
+Scenario:
+
+request A
+idempotency key X
+
+request A retry
+idempotency key X
+
+Expected:
+
+same logical run.
+
+Bukan:
+
+dua scan.
+
+Jika key sama tetapi payload
+tidak kompatibel:
+
+return conflict.
+
+Jangan silently reuse
+dengan parameter berbeda.
+
+============================================================
+14. QUEUE
+============================================================
+
+Implementasikan durable queue semantics
+menggunakan infrastructure yang sudah ada.
+
+Jika repository belum memiliki queue:
+
+pilih implementasi paling ringan
+yang memenuhi durability dan concurrency.
+
+Prioritas:
+
+PostgreSQL-backed queue
+atau existing queue infrastructure.
+
+JANGAN menambah Redis/Kafka/SQS
+hanya demi terlihat enterprise
+jika tidak diperlukan.
+
+Queue harus:
+
+- durable
+- tenant-safe
+- retry-aware
+- observable
+- recoverable
+
+============================================================
+15. JOB RECORD
+============================================================
+
+Jika queue membutuhkan job table:
+
+gunakan/extend existing model.
+
+Minimal:
+
+jobId
+scanRunId
+organizationId
+status
+attempt
+availableAt
+leasedAt
+leaseExpiresAt
+workerId
+lastError
+createdAt
+updatedAt
+
+Jangan menyimpan secret.
+
+============================================================
+16. LEASE
+============================================================
+
+Worker mengambil job menggunakan lease.
+
+Lease harus memiliki:
+
+owner
+acquiredAt
+expiresAt
+
+Worker wajib heartbeat
+jika execution melebihi lease interval.
+
+Jika worker mati:
+
+lease eventually expires.
+
+Job dapat di-recover.
+
+============================================================
+17. STUCK LEASE RECOVERY
+============================================================
+
+WAJIB implementasikan:
+
+expired lease detection.
+
+Scenario:
+
+worker A
+→ lease job
+
+worker A mati
+
+lease expired
+
+worker B
+→ reclaim
+
+Expected:
+
+job dapat dilanjutkan/retry
+tanpa duplicate logical run.
+
+Jangan membuat dua worker
+aktif untuk lease yang sama.
+
+Gunakan atomic DB operation
+untuk claim/reclaim.
+
+============================================================
+18. CONCURRENCY CONTROL
+============================================================
+
+Untuk integration yang sama:
+
+tidak boleh ada dua scan aktif
+jika PRD contract melarang concurrent scan.
+
+Gunakan:
+
+database lock
+atau unique active-run constraint
+atau mekanisme equivalent yang durable.
+
+Memory lock TIDAK cukup.
+
+Expected:
+
+parallel Scan Now x 10
+→ satu active run
+atau sesuai explicit concurrency policy.
+
+============================================================
+19. WORKER LOOP
+============================================================
+
+Worker harus:
+
+1. claim queued job
+2. verify lease
+3. mark running
+4. load integration
+5. verify provider readiness
+6. execute checks
+7. persist outcome per unit
+8. update progress
+9. heartbeat lease
+10. process failures according to retry policy
+11. determine terminal state
+12. emit completion boundary
+13. release/close lease
+
+Tidak boleh kehilangan result
+jika process mati di tengah execution.
+
+============================================================
+20. PROGRESS
+============================================================
+
+Progress harus server-derived.
+
+Minimal:
+
+total
+completed
+failed
+skipped
+percentage
+
+Jika total belum diketahui:
+
+gunakan indeterminate/unknown state.
+
+Jangan tampilkan:
+
+100%
+
+sebelum execution benar-benar selesai.
+
+Frontend tidak menghitung sendiri
+sebagai source of truth.
+
+============================================================
+21. PER-CHECK OUTCOME
+============================================================
+
+Scan harus mampu mencatat
+outcome per check/resource.
+
+Minimal:
+
+check identity
+check version
+resource identity
+status/outcome
+startedAt
+finishedAt
+duration
+error class bila gagal
+correlation ID
+scanRunId
+
+Gunakan existing model bila tersedia.
+
+Jangan menunggu semua check selesai
+baru menyimpan satu JSON besar
+jika itu merusak recovery.
+
+============================================================
+22. APPEND-ONLY RESULT
+============================================================
+
+Execution result harus append-only
+untuk historical truth.
+
+Jangan:
+
+UPDATE historical outcome
+untuk mengubah masa lalu.
+
+Jika perlu correction:
+
+buat result/version baru.
+
+Jangan menghapus historical scan result
+karena retry.
+
+============================================================
+23. RETRY POLICY
+============================================================
+
+Retry HANYA untuk transient failure.
+
+PRD:
+
+429
+500
+503
+transient provider failure
+
+Gunakan exponential backoff.
+
+Maximum:
+
+3 retry attempts.
+
+401 / 403:
+
+JANGAN retry otomatis.
+
+Catat sebagai execution/permission error.
+
+============================================================
+24. RETRY FORMULA
+============================================================
+
+Gunakan bounded exponential backoff
+dengan jitter jika architecture
+mendukungnya secara deterministik.
+
+Harus ada upper bound.
+
+Jangan infinite retry.
+
+Jangan busy loop.
+
+Retry harus tercatat:
+
+attempt
+reason
+next attempt time
+last error.
+
+============================================================
+25. NON-RETRYABLE
+============================================================
+
+Minimal non-retryable:
+
+401
+403
+invalid credential
+invalid configuration
+unsupported provider contract
+schema validation failure
+authorization failure
+
+Sesuai provider contract existing.
+
+Jangan mengarang classification baru
+jika existing taxonomy sudah tersedia.
+
+============================================================
+26. RETRY IDEMPOTENCY
+============================================================
+
+Retry tidak boleh:
+
+- membuat duplicate ScanRun
+- membuat duplicate logical result
+- duplicate evidence
+- duplicate notification event
+
+Gunakan:
+
+scanRunId
+check identity
+resource identity
+attempt semantics
+
+dan unique constraints
+sesuai kebutuhan.
+
+============================================================
+27. PARTIAL RESULT
+============================================================
+
+Satu check/provider failure
+TIDAK BOLEH menghapus resource
+atau check lain yang berhasil.
+
+Contoh:
+
+100 resources
+
+95 sukses
+5 gagal permission
+
+Result:
+
+PARTIAL
+
+bukan:
+
+FAILED + kehilangan 95 result.
+
+Coverage harus menunjukkan:
+
+95/100.
+
+============================================================
+28. FAILED VS PARTIAL
+============================================================
+
+FAILED:
+
+execution tidak menghasilkan
+usable result secara material.
+
+PARTIAL:
+
+sebagian result valid
+tetapi sebagian scope gagal.
+
+Jangan menyamakan:
+
+partial = failed.
+
+Decision harus deterministic
+dan documented.
+
+============================================================
+29. CANCEL
+============================================================
+
+Implementasikan cancel.
+
+Flow:
+
+running
+→ cancelling
+→ cancelled
+
+Cancel request harus:
+
+authenticated
+authorized
+tenant scoped.
+
+Cancel tidak boleh:
+
+menghapus ScanRun
+menghapus historical result
+menghapus evidence.
+
+Jika provider call tidak dapat dihentikan
+seketika:
+
+mark cancelling
+→ stop next work
+→ finalize safely.
+
+============================================================
+30. CANCEL RACE CONDITION
+============================================================
+
+Test:
+
+worker sedang menyelesaikan check
+
+client cancel bersamaan.
+
+Expected:
+
+tidak ada corrupt state.
+
+Tidak boleh:
+
+cancelled + completed contradiction.
+
+Gunakan atomic state transition.
+
+============================================================
+31. DEAD LETTER
+============================================================
+
+Implementasikan dead-letter.
+
+Dead-letter digunakan ketika:
+
+retry exhausted
+atau job tidak dapat diproses
+secara aman.
+
+Dead-letter harus menyimpan:
+
+original job
+attempt count
+last failure
+reason
+timestamps
+correlation ID.
+
+Tidak boleh hilang.
+
+============================================================
+32. DEAD LETTER REPLAY
+============================================================
+
+Operator dapat replay
+dead-letter melalui controlled action.
+
+Replay:
+
+menghasilkan execution attempt baru
+dengan audit.
+
+Tidak boleh mengubah
+historical failure record.
+
+Replay harus idempotent.
+
+============================================================
+33. CIRCUIT BREAKER
+============================================================
+
+PRD:
+
+setelah lima ScanRun berturut-turut
+gagal total:
+
+integration menjadi:
+
+error
+
+dan auto-scan dihentikan.
+
+Implementasikan berdasarkan
+successful/failed terminal runs
+yang relevan.
+
+Partial bukan otomatis
+full failure jika PRD tidak menyatakannya.
+
+============================================================
+34. CIRCUIT BREAKER RECOVERY
+============================================================
+
+Integration error tidak boleh
+auto-resume tanpa kondisi recovery
+yang dikontrak.
+
+Recovery:
+
+reconnect
+atau re-verify.
+
+Setelah berhasil:
+
+integration kembali usable.
+
+Audit transition.
+
+============================================================
+35. SCHEDULE
+============================================================
+
+Implementasikan scheduling
+sesuai existing PRD architecture.
+
+Schedule harus:
+
+- tenant scoped
+- integration scoped
+- timezone-aware
+- protected
+- idempotent
+- observable
+
+Jangan membuat cron global
+yang tidak tenant-aware.
+
+Jika scheduling infrastructure
+belum diperlukan untuk first vertical slice:
+
+buat durable scheduling boundary
+tanpa membangun platform scheduler
+yang berlebihan.
+
+Namun lifecycle schedule → ScanRun
+harus nyata.
+
+============================================================
+36. SCHEDULE DUPLICATE PROTECTION
+============================================================
+
+Scheduled execution tidak boleh
+membuat duplicate active ScanRun.
+
+Gunakan idempotency policy
+yang sama dengan Scan Now.
+
+============================================================
+37. PROVIDER BOUNDARY
+============================================================
+
+Orchestrator TIDAK boleh
+mengandung AWS-specific logic
+secara langsung.
+
+Gunakan provider contract
+yang sudah dibangun Prompt 05.
+
+Flow:
+
+Orchestrator
+→ Provider interface
+→ AWS adapter
+
+Bukan:
+
+Orchestrator
+→ AWS SDK langsung.
+
+============================================================
+38. CREDENTIAL SAFETY
+============================================================
+
+Orchestrator tidak boleh
+menyimpan credential plaintext.
+
+Credential retrieval hanya
+melalui integration/provider boundary.
+
+Untuk AWS sesuai PRD:
+
+cross-account IAM role
++
+External ID
++
+STS temporary credential.
+
+Credential STS hanya di memory
+selama execution.
+
+Jangan menyimpan:
+
+access key
+secret key
+session token
+
+ke ScanRun/log/audit.
+
+============================================================
+39. TENANT ISOLATION
+============================================================
+
+Semua:
+
+ScanRun
+Job
+Integration
+Check result
+Schedule
+Lease
+Dead-letter
+
+harus tenant-scoped.
+
+Organization A tidak boleh:
+
+melihat scan B
+cancel scan B
+replay job B
+read error B
+query progress B.
+
+Authorization berasal dari
+server-side authenticated context.
+
+Bukan organizationId dari client.
+
+============================================================
+40. RBAC
+============================================================
+
+Gunakan existing RBAC.
+
+Minimal permissions:
+
+scan.read
+scan.create
+scan.cancel
+
+dan operator permission
+untuk:
+
+dead-letter replay
+queue recovery
+circuit breaker recovery
+
+Gunakan naming existing
+jika sudah tersedia.
+
+Jangan membuat RBAC system kedua.
+
+============================================================
+41. AUDIT
+============================================================
+
+Audit mutation penting:
+
+Scan requested
+Scan queued
+Scan started
+Scan cancelled
+Scan completed
+Scan partial
+Scan failed
+Retry scheduled
+Dead-lettered
+Dead-letter replayed
+Circuit breaker opened
+Circuit breaker recovered
+Schedule changed
+
+Audit harus memiliki:
+
+actor
+organization
+action
+target
+timestamp
+correlation ID
+redacted metadata.
+
+JANGAN menyimpan credential
+atau raw provider payload.
+
+============================================================
+42. ERROR TAXONOMY
+============================================================
+
+Gunakan error class yang jelas:
+
+validation
+authorization
+not_found
+conflict
+provider
+permission
+rate_limit
+timeout
+schema
+transient
+system
+cancelled
+
+Gunakan existing taxonomy
+jika sudah tersedia.
+
+Semua API memakai
+standard error envelope.
+
+============================================================
+43. TIMEOUT
+============================================================
+
+Setiap provider/check execution
+harus memiliki timeout.
+
+Timeout:
+
+jangan hang forever.
+
+Jika timeout transient:
+
+retry sesuai policy.
+
+Jika exhausted:
+
+partial/failed sesuai coverage.
+
+Catat:
+
+timeout duration
+attempt
+provider
+check
+resource.
+
+============================================================
+44. WORKER CRASH
+============================================================
+
+Test:
+
+worker crash setelah:
+
+- job claimed
+- state running
+- check 1 selesai
+- sebelum check 2
+
+Expected:
+
+restart/recovery
+→ lease recovery
+→ lanjut/retry
+→ historical result check 1
+tidak duplicate.
+
+============================================================
+45. PROCESS RESTART
+============================================================
+
+Restart aplikasi/worker
+tidak boleh kehilangan queued jobs.
+
+After restart:
+
+queued jobs tetap dapat dieksekusi.
+
+Stuck running jobs:
+
+recovered berdasarkan lease expiry.
+
+============================================================
+46. DATABASE TRANSACTION BOUNDARIES
+============================================================
+
+Gunakan transaction untuk:
+
+claim job
++
+lease assignment
+
+dan state transitions kritis.
+
+Jangan membuat:
+
+check execution external provider
+berlangsung di dalam
+transaction database panjang.
+
+Pattern:
+
+short DB transaction
+→ external work
+→ short persistence transaction.
+
+============================================================
+47. LOCKING
+============================================================
+
+Gunakan database-safe locking.
+
+Hindari:
+
+global in-memory mutex
+sebagai satu-satunya protection.
+
+Deployment multi-instance harus tetap aman.
+
+============================================================
+48. MULTI-WORKER TEST
+============================================================
+
+Test:
+
+worker A
+worker B
+worker C
+
+memproses queue yang sama.
+
+Expected:
+
+satu job hanya diproses
+oleh satu valid lease owner.
+
+Tidak boleh:
+
+duplicate execution
+karena race claim.
+
+============================================================
+49. BACKLOG
+============================================================
+
+Queue harus dapat menunjukkan:
+
+queued count
+running count
+failed count
+dead-letter count
+oldest queued age
+
+Jika existing operator surface belum ada:
+
+buat minimal internal read endpoint/metrics.
+
+Jangan membangun dashboard M-15 penuh.
+
+============================================================
+50. DURATION
+============================================================
+
+ScanRun menyimpan:
+
+startedAt
+finishedAt
+durationMs
+
+Per check juga:
+
+startedAt
+finishedAt
+durationMs.
+
+Jangan menghitung duration
+hanya di frontend.
+
+============================================================
+51. CORRELATION ID
+============================================================
+
+Setiap ScanRun harus memiliki
+correlation ID yang konsisten
+di:
+
+API
+job
+worker
+provider execution
+audit
+error.
+
+Jangan memasukkan secret
+ke correlation ID.
+
+============================================================
+52. NOTIFICATION BOUNDARY
+============================================================
+
+Prompt 06 belum membangun
+M-10 Notification full system.
+
+Namun setelah scan selesai,
+orchestrator harus menyediakan
+event/domain boundary:
+
+ScanCompleted
+ScanPartial
+ScanFailed
+ScanCancelled
+
+yang dapat digunakan modul berikutnya.
+
+Jangan membangun email/WhatsApp
+delivery platform penuh di sini.
+
+============================================================
+53. CRITICAL DRIFT BOUNDARY
+============================================================
+
+PRD menyebut critical drift:
+
+pass → fail
+untuk severity critical.
+
+Orchestrator hanya menyediakan
+completion event dan metadata
+yang dibutuhkan.
+
+Jangan mengambil alih
+Notification module.
+
+Jangan membuat delivery provider
+baru.
+
+============================================================
+54. API
+============================================================
+
+Gunakan existing HTTP architecture.
+
+Minimal endpoint capability:
+
+POST /.../scans
+GET /.../scans/:id
+POST /.../scans/:id/cancel
+GET /.../scans/:id/progress
+
+Schedule endpoints jika scope existing
+sudah tersedia.
+
+JIKA ROUTE SUDAH ADA:
+
+EXTEND.
+
+JANGAN DUPLICATE.
+
+============================================================
+55. API RESPONSE
+============================================================
+
+Scan create:
+
+return:
+
+runId
+status
+correlationId
+createdAt
+
+jika duplicate idempotency:
+
+return existing logical run
+dengan semantics yang konsisten.
+
+GET status:
+
+status
+progress
+duration
+timestamps
+failure reason
+partial information
+retry information
+correlation ID
+
+Jangan mengembalikan secret.
+
+============================================================
+56. PAGINATION
+============================================================
+
+Scan history endpoint:
+
+harus pagination.
+
+Stable ordering:
+
+createdAt DESC
++
+stable ID tie breaker.
+
+Jangan load seluruh history
+ke memory.
+
+============================================================
+57. FILTER
+============================================================
+
+Jika existing scan list:
+
+support filter minimal:
+
+status
+integration
+date range
+
+Gunakan database filtering.
+
+============================================================
+58. NO SILENT FALLBACK
+============================================================
+
+Dilarang:
+
+provider unavailable
+→ fake result
+
+permission denied
+→ pass
+
+timeout
+→ success
+
+missing credential
+→ demo scan
+
+database error
+→ fake progress
+
+worker failure
+→ completed
+
+Jalur live harus truthful.
+
+============================================================
+59. DEMO DATA
+============================================================
+
+Demo fixture hanya boleh berada
+di:
+
+tests
+development fixture
+sandbox
+
+Tidak boleh masuk production scan path.
+
+============================================================
+60. OBSERVABILITY
+============================================================
+
+Tambahkan metrics/log terstruktur
+menggunakan infrastructure existing.
+
+Minimal:
+
+scan_started_total
+scan_completed_total
+scan_partial_total
+scan_failed_total
+scan_cancelled_total
+scan_retry_total
+scan_dead_letter_total
+queue_depth
+scan_duration
+check_duration
+lease_recovery_total
+worker_failure_total
+
+Logs harus:
+
+structured
+redacted
+correlation-aware.
+
+============================================================
+61. SENSITIVE DATA REDACTION
+============================================================
+
+Jangan log:
+
+AWS access key
+AWS secret
+STS token
+authorization header
+raw credential
+raw evidence
+sensitive provider payload.
+
+Jika provider error membawa
+payload sensitif:
+
+redact sebelum log.
+
+============================================================
+62. DATABASE INDEXING
+============================================================
+
+Audit Prisma query patterns.
+
+Indexes untuk:
+
+organizationId
+integrationId
+status
+createdAt
+idempotency key
+lease expiry
+availableAt
+scanRunId
+
+sesuai actual query.
+
+Jangan menambah index
+tanpa query justification.
+
+============================================================
+63. MIGRATION
+============================================================
+
+Jika schema perlu diubah:
+
+buat migration non-destructive.
+
+JANGAN:
+
+prisma migrate reset
+drop database
+delete production data.
+
+Apply migration normal.
+
+============================================================
+64. TESTING — UNIT
+============================================================
+
+WAJIB test:
+
+state transition
+invalid transition
+idempotency
+retry classification
+backoff
+partial classification
+cancel semantics
+dead-letter
+circuit breaker
+progress calculation
+duration calculation
+tenant scope
+RBAC.
+
+============================================================
+65. TESTING — INTEGRATION
+============================================================
+
+Gunakan PostgreSQL nyata.
+
+Test:
+
+create ScanRun
+→ enqueue
+→ claim
+→ lease
+→ execute
+→ persist
+→ complete.
+
+Jangan hanya mock seluruh database.
+
+============================================================
+66. TESTING — CONCURRENCY
+============================================================
+
+Test:
+
+10 concurrent Scan Now
+same integration
+same idempotency key.
+
+Expected:
+
+1 logical ScanRun.
+
+Test:
+
+multiple workers
+same queue.
+
+Expected:
+
+no duplicate job claim.
+
+============================================================
+67. TESTING — RETRY
+============================================================
+
+Scenario:
+
+attempt 1 → 503
+attempt 2 → 503
+attempt 3 → 200
+
+Expected:
+
+success.
+
+Scenario:
+
+401
+
+Expected:
+
+no retry.
+
+Scenario:
+
+429
+→ retry.
+
+Scenario:
+
+retry exhausted
+
+Expected:
+
+dead-letter / terminal failure
+sesuai contract.
+
+============================================================
+68. TESTING — PARTIAL
+============================================================
+
+Fixture:
+
+resource A → pass
+resource B → pass
+resource C → provider error
+resource D → pass
+
+Expected:
+
+partial.
+
+A/B/D tidak hilang.
+
+C failure terlihat.
+
+============================================================
+69. TESTING — CANCEL
+============================================================
+
+Start scan.
+
+Cancel while running.
+
+Expected:
+
+cancelling
+→ cancelled.
+
+Historical result tetap ada.
+
+============================================================
+70. TESTING — CRASH RECOVERY
+============================================================
+
+Simulasikan:
+
+worker claim
+→ worker crash
+→ lease expiry
+→ second worker reclaim.
+
+Expected:
+
+job recovered.
+
+Tidak ada duplicate logical run.
+
+============================================================
+71. TESTING — CIRCUIT BREAKER
+============================================================
+
+5 consecutive total failures.
+
+Expected:
+
+integration error
++
+auto-scan stopped.
+
+Then:
+
+re-verify/reconnect success.
+
+Expected:
+
+recovery.
+
+============================================================
+72. TESTING — TENANT
+============================================================
+
+Organization A:
+
+scan A.
+
+Organization B:
+
+scan B.
+
+A cannot:
+
+read B
+cancel B
+replay B
+see B queue metrics
+see B errors.
+
+B cannot access A.
+
+============================================================
+73. TESTING — SECURITY
+============================================================
+
+Test:
+
+IDOR
+cross-tenant ID guessing
+unauthorized cancel
+unauthorized replay
+unauthorized schedule mutation
+privilege escalation
+secret leakage
+raw provider error leakage.
+
+Semua harus fail safely.
+
+============================================================
+74. TESTING — API
+============================================================
+
+Test:
+
+happy path
+validation
+401
+403
+404
+409 idempotency conflict
+provider failure
+timeout
+cancel
+pagination
+filter.
+
+============================================================
+75. REAL PROVIDER PATH
+============================================================
+
+Jangan mengganti provider adapter
+dengan fake pada production path.
+
+Automated test boleh menggunakan
+deterministic provider test double.
+
+Tetapi architecture harus:
+
+Scan Orchestrator
+→ Provider Contract
+→ actual AWS adapter.
+
+============================================================
+76. AWS COMPATIBILITY
+============================================================
+
+Gunakan AWS integration
+yang sudah dibuat Prompt 05.
+
+Jangan implementasikan ulang
+credential verification.
+
+Jangan hardcode AWS credential.
+
+Pastikan orchestration dapat
+memanggil verified AWS integration.
+
+Jika AWS live credential belum tersedia:
+
+JANGAN mengklaim live verified.
+
+Tetap test contract
+dengan safe test adapter.
+
+============================================================
+77. SCHEDULE SAFETY
+============================================================
+
+Scheduled scan tidak boleh
+menjalankan integration
+yang belum:
+
+verified.
+
+Jika integration:
+
+revoked
+error
+unverified
+
+schedule harus:
+
+blocked
+atau skipped dengan reason.
+
+Jangan menjalankan scan palsu.
+
+============================================================
+78. RECOVERY RUNBOOK
+============================================================
+
+Dokumentasikan:
+
+stuck scan
+dead-letter
+worker crash
+provider outage
+queue backlog
+circuit breaker
+credential revoke
+database failure
+
+Operator harus tahu:
+
+diagnose
+recover
+replay
+when NOT to replay.
+
+============================================================
+79. COMPLETION DOSSIER
+============================================================
+
+PRD mewajibkan dossier completion.
+
+Buat/update:
+
+DOC/completion/M-03/
+
+atau struktur repository
+yang equivalent.
+
+Minimal:
+
+README.md
+contract.md
+permission-matrix.md
+test-matrix.md
+proof-record.md
+runbook.md
+
+Isi harus mencakup:
+
+scope
+non-goals
+owner
+actor
+tenant scope
+source of truth
+state machine
+command/query/event
+schema
+error taxonomy
+retry
+cancel
+lease
+recovery
+idempotency
+audit
+security
+limitations
+operational procedure.
+
+PRD secara eksplisit mensyaratkan
+dossier tersebut sebelum capability
+dapat dinyatakan live_verified. 
+Jangan menandai completed hanya
+berdasarkan klaim developer. 

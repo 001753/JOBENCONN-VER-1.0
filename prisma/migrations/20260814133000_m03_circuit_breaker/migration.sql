@@ -1,0 +1,2 @@
+ALTER TABLE "AwsConnection"
+  ADD COLUMN "scanFailureStreak" INTEGER NOT NULL DEFAULT 0;

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { AppError } from "./errors.js";
 import { requirePermission, type Permission } from "./authorization.js";
-import { AuditEventRepository, type OrganizationContext } from "./persistence.js";
+import { AuditEventRepository, systemContext, type OrganizationContext } from "./persistence.js";
 import {
   applicableSecurityRules,
   SECURITY_RULES,
@@ -10,6 +10,7 @@ import {
   type SecurityResourceSnapshot,
   type SecurityRule,
 } from "./security-rules.js";
+import { calculateProgress } from "./scan-orchestration.js";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type SecurityFindingRecord = Prisma.SecurityFindingGetPayload<object>;
@@ -31,6 +32,14 @@ export interface FindingFilters {
   readonly region?: string;
   readonly page: number;
   readonly pageSize: number;
+}
+
+export interface ScanFilters {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly status?: "QUEUED" | "RUNNING" | "CANCELLING" | "COMPLETED" | "PARTIAL" | "FAILED" | "CANCELLED" | "DEAD_LETTER";
+  readonly from?: Date;
+  readonly to?: Date;
 }
 
 function requireSecurityPermission(auth: SecurityAuthorization, permission: Permission): void {
@@ -104,19 +113,43 @@ function toResourceSnapshot(resource: {
   return { ...resource, awsAccountId: resource.account.awsAccountId };
 }
 
-function toPublicScan(run: SecurityScanRunRecord) {
+export function toPublicScan(run: SecurityScanRunRecord) {
+  const durationMs = run.durationMs ?? (run.finishedAt && run.startedAt ? run.finishedAt.getTime() - run.startedAt.getTime() : null);
+  const total = run.totalChecks ?? run.totalResources;
+  const completed = run.completedChecks || run.evaluatedResources;
+  const failed = run.failedChecks || run.failedResources;
+  const progress = calculateProgress({
+    total: total > 0 ? total : null,
+    completed,
+    failed,
+    skipped: run.skippedChecks,
+    terminal: ["COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DEAD_LETTER"].includes(run.status),
+  });
   return {
     id: run.id,
     organizationId: run.organizationId,
     accountId: run.accountId,
     discoveryRunId: run.discoveryRunId,
     status: run.status,
+    triggerType: run.triggerType,
+    requestedByUserId: run.requestedByUserId,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
+    durationMs,
+    progress,
     totalResources: run.totalResources,
     evaluatedResources: run.evaluatedResources,
     insufficientEvidence: run.insufficientEvidence,
     failedResources: run.failedResources,
+    totalChecks: run.totalChecks,
+    completedChecks: run.completedChecks,
+    failedChecks: run.failedChecks,
+    skippedChecks: run.skippedChecks,
+    retryCount: run.retryCount,
+    lastErrorCategory: run.lastErrorCategory,
+    lastError: run.lastError,
+    cancelRequestedAt: run.cancelRequestedAt,
+    terminalReason: run.terminalReason,
     rulesEvaluated: run.rulesEvaluated,
     findingsCreated: run.findingsCreated,
     findingsResolved: run.findingsResolved,
@@ -165,7 +198,140 @@ export class SecurityAnalysisService {
     private readonly rules: readonly SecurityRule[] = SECURITY_RULES,
   ) {}
 
-  async runScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey?: string) {
+  async enqueueScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey: string | undefined, triggerType = "MANUAL") {
+    requireSecurityPermission(auth, "scan.create");
+    safeUuid(accountId, "accountId");
+    const account = await this.db.awsAccount.findFirst({
+      where: { id: accountId, organizationId: auth.organizationId },
+      include: { connection: true },
+    });
+    if (!account) throw new AppError("NOT_FOUND", "AWS account not found.");
+    if (account.status !== "ACTIVE" || account.connection.status !== "ACTIVE") {
+      throw new AppError("CONFLICT", "The AWS integration must be verified and active before a scan can run.");
+    }
+    const resources = await this.db.awsResource.findMany({
+      where: { organizationId: auth.organizationId, accountId },
+      select: { resourceId: true, resourceType: true, region: true, status: true },
+      orderBy: [{ resourceId: "asc" }, { region: "asc" }],
+    });
+    const fingerprint = createHash("sha256").update(JSON.stringify(resources), "utf8").digest("hex");
+    const key = requestedKey ? safeKey(requestedKey) : `snapshot-${fingerprint}`;
+    const canonicalKey = `${auth.organizationId}:${accountId}:${key}`;
+    const activeKey = `${auth.organizationId}:${accountId}`;
+    const existing = await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
+    if (existing) {
+      if (existing.snapshotFingerprint !== fingerprint) throw new AppError("CONFLICT", "The idempotency key was reused for a different inventory snapshot.");
+      return toPublicScan(existing);
+    }
+    const active = await this.db.securityScanRun.findUnique({ where: { activeKey } });
+    if (active) throw new AppError("CONFLICT", "An active scan already exists for this AWS integration.");
+    const createdAt = new Date();
+    try {
+      const scan = await this.db.$transaction(async (tx) => {
+        const created = await tx.securityScanRun.create({
+          data: {
+            organizationId: auth.organizationId,
+            accountId,
+            connectionId: account.connectionId,
+            requestedByUserId: auth.actorUserId,
+            status: "QUEUED",
+            triggerType,
+            idempotencyKey: canonicalKey,
+            activeKey,
+            snapshotFingerprint: fingerprint,
+            correlationId,
+            startedAt: null,
+          },
+        });
+        await tx.scanJob.create({
+          data: {
+            scanRunId: created.id,
+            organizationId: auth.organizationId,
+            accountId,
+            correlationId,
+          },
+        });
+        const audit = new AuditEventRepository(tx);
+        await audit.append(auth.context, {
+          actorUserId: auth.actorUserId,
+          action: "SCAN_REQUESTED",
+          purpose: "request a durable tenant-scoped scan",
+          targetType: "security_scan",
+          targetId: created.id,
+          result: "SUCCESS",
+          correlationId,
+          metadata: { accountId, triggerType },
+        });
+        await audit.append(auth.context, {
+          actorUserId: auth.actorUserId,
+          action: "SCAN_QUEUED",
+          purpose: "place scan work in the PostgreSQL-backed queue",
+          targetType: "security_scan",
+          targetId: created.id,
+          result: "SUCCESS",
+          correlationId,
+          metadata: {},
+        });
+        return created;
+      });
+      return toPublicScan(scan);
+    } catch (error) {
+      if (this.persistenceCode(error) === "P2002") {
+        const raced = await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
+        if (raced) return toPublicScan(raced);
+        throw new AppError("CONFLICT", "An active scan already exists for this AWS integration.");
+      }
+      throw error;
+    }
+  }
+
+  async cancelScan(auth: SecurityAuthorization, scanId: string, correlationId: string) {
+    requireSecurityPermission(auth, "scan.cancel");
+    safeUuid(scanId, "scanId");
+    const current = await this.db.securityScanRun.findFirst({ where: { id: scanId, organizationId: auth.organizationId } });
+    if (!current) throw new AppError("NOT_FOUND", "Security scan not found.");
+    if (["COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DEAD_LETTER"].includes(current.status)) return toPublicScan(current);
+    const cancelled = await this.db.$transaction(async (tx) => {
+      const status = current.status === "QUEUED" ? "CANCELLED" as const : "CANCELLING" as const;
+      const updated = await tx.securityScanRun.updateMany({
+        where: { id: scanId, organizationId: auth.organizationId, status: current.status },
+        data: { status, cancelRequestedAt: new Date(), ...(status === "CANCELLED" ? { finishedAt: new Date(), activeKey: null, terminalReason: "client_requested" } : {}) },
+      });
+      if (updated.count !== 1) throw new AppError("CONFLICT", "The scan changed before cancellation could be applied.");
+      if (status === "CANCELLED") await tx.scanJob.updateMany({ where: { scanRunId: scanId, status: "QUEUED" }, data: { status: "CANCELLED" } });
+      await new AuditEventRepository(tx).append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: "SCAN_CANCELLED",
+        purpose: "request safe cancellation of scan execution",
+        targetType: "security_scan",
+        targetId: scanId,
+        result: "SUCCESS",
+        correlationId,
+        metadata: { priorStatus: current.status },
+      });
+      return tx.securityScanRun.findUniqueOrThrow({ where: { id: scanId } });
+    });
+    return toPublicScan(cancelled);
+  }
+
+  async getScanProgress(auth: SecurityAuthorization, scanId: string) {
+    requireSecurityPermission(auth, "scan.read");
+    return this.getScan(auth, scanId);
+  }
+
+  async executeQueuedRun(scanId: string): Promise<void> {
+    const scan = await this.db.securityScanRun.findUnique({ where: { id: scanId } });
+    if (!scan) throw new AppError("NOT_FOUND", "Queued security scan not found.");
+    const auth: SecurityAuthorization = {
+      actorUserId: scan.requestedByUserId ?? "",
+      organizationId: scan.organizationId,
+      role: "OWNER",
+      context: systemContext(scan.requestedByUserId ?? undefined),
+    };
+    await this.runScan(auth, scan.accountId, scan.correlationId, undefined, scan.id);
+  }
+
+  async runScan(auth: SecurityAuthorization, accountId: string, correlationId: string, requestedKey?: string, existingRunId?: string) {
     requireSecurityPermission(auth, "findings.run");
     safeUuid(accountId, "accountId");
     const account = await this.db.awsAccount.findFirst({ where: { id: accountId, organizationId: auth.organizationId } });
@@ -181,8 +347,10 @@ export class SecurityAnalysisService {
     const fingerprint = snapshotFingerprint(allResources.map(toResourceSnapshot), activeRules);
     const suppliedKey = requestedKey ? safeKey(requestedKey) : undefined;
     const canonicalKey = `${auth.organizationId}:${accountId}:${suppliedKey ?? `snapshot-${fingerprint}`}`;
-    const existing = await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
-    if (existing) {
+    const existing = existingRunId
+      ? await this.db.securityScanRun.findFirst({ where: { id: existingRunId, organizationId: auth.organizationId, accountId } })
+      : await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
+    if (existing && !existingRunId) {
       if (existing.snapshotFingerprint !== fingerprint) throw new AppError("CONFLICT", "The idempotency key was reused for a different inventory snapshot.");
       return toPublicScan(existing);
     }
@@ -193,26 +361,45 @@ export class SecurityAnalysisService {
       select: { id: true },
     });
     let scan: SecurityScanRunRecord;
-    try {
-      scan = await this.db.securityScanRun.create({
-        data: {
-          organizationId: auth.organizationId,
-          accountId,
-          ...(latestDiscovery ? { discoveryRunId: latestDiscovery.id } : {}),
-          idempotencyKey: canonicalKey,
-          snapshotFingerprint: fingerprint,
-          correlationId,
-        },
-      });
-    } catch (error) {
-      if (this.persistenceCode(error) === "P2002") {
-        const raced = await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
-        if (raced) return toPublicScan(raced);
+    if (existingRunId) {
+      if (!existing) throw new AppError("NOT_FOUND", "Queued security scan not found.");
+      scan = existing;
+    } else {
+      try {
+        scan = await this.db.securityScanRun.create({
+          data: {
+            organizationId: auth.organizationId,
+            accountId,
+            connectionId: account.connectionId,
+            ...(latestDiscovery ? { discoveryRunId: latestDiscovery.id } : {}),
+            idempotencyKey: canonicalKey,
+            snapshotFingerprint: fingerprint,
+            correlationId,
+            status: "RUNNING",
+            startedAt: new Date(),
+          },
+        });
+      } catch (error) {
+        if (this.persistenceCode(error) === "P2002") {
+          const raced = await this.db.securityScanRun.findUnique({ where: { idempotencyKey: canonicalKey } });
+          if (raced) return toPublicScan(raced);
+        }
+        throw error;
       }
-      throw error;
     }
 
     try {
+      if (existingRunId && scan.status === "QUEUED") {
+        const transitioned = await this.db.securityScanRun.updateMany({
+          where: { id: scan.id, status: "QUEUED" },
+          data: { status: "RUNNING", startedAt: new Date() },
+        });
+        if (transitioned.count !== 1) {
+          const current = await this.db.securityScanRun.findUniqueOrThrow({ where: { id: scan.id } });
+          if (["COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "DEAD_LETTER"].includes(current.status)) return toPublicScan(current);
+          throw new AppError("CONFLICT", "The queued scan is already being processed.");
+        }
+      }
       await new AuditEventRepository(this.db).append(auth.context, {
         actorUserId: auth.actorUserId,
         action: "SCAN_STARTED",
@@ -231,29 +418,79 @@ export class SecurityAnalysisService {
       let insufficientEvidence = 0;
       let failedResources = 0;
       let rulesEvaluated = 0;
+      let completedChecks = 0;
+      let failedChecks = 0;
 
       for (const resource of activeResources) {
+        const cancellation = await this.db.securityScanRun.findUnique({ where: { id: scan.id }, select: { status: true } });
+        if (cancellation?.status === "CANCELLING") break;
         const applicable = applicableSecurityRules(resource, activeRules);
         let resourceEvaluated = false;
         let resourceInsufficient = false;
         let resourceFailed = false;
         for (const rule of applicable) {
           rulesEvaluated += 1;
+          const checkStartedAt = new Date();
           try {
             const evaluation = rule.evaluate(resource);
+            const checkFinishedAt = new Date();
             if (evaluation.status === "FAIL") {
               violations.push({ resource, rule, evaluation });
               resourceEvaluated = true;
               resourceFailed = true;
+              failedChecks += 1;
             } else if (evaluation.status === "PASS" || evaluation.status === "NOT_APPLICABLE") {
               resourceEvaluated = true;
               resolvable.add(findingIdentity({ ruleId: rule.ruleId, ruleVersion: rule.version, awsAccountId: resource.awsAccountId, region: resource.region, resourceId: resource.resourceId }));
+              completedChecks += 1;
             } else {
               resourceInsufficient = true;
+              completedChecks += 1;
+            }
+            try {
+              await this.db.scanCheckOutcome.create({
+                data: {
+                  organizationId: auth.organizationId,
+                  scanRunId: scan.id,
+                  checkId: rule.ruleId,
+                  checkVersion: rule.version,
+                  resourceIdentity: `${resource.awsAccountId}:${resource.region}:${resource.resourceId}`,
+                  status: evaluation.status,
+                  startedAt: checkStartedAt,
+                  finishedAt: checkFinishedAt,
+                  durationMs: Math.max(0, checkFinishedAt.getTime() - checkStartedAt.getTime()),
+                  correlationId,
+                  attempt: 1,
+                },
+              });
+            } catch (outcomeError) {
+              if (this.persistenceCode(outcomeError) !== "P2002") throw outcomeError;
             }
           } catch {
             resourceFailed = true;
             errors.push({ resourceId: resource.resourceId, ruleId: rule.ruleId, category: "RULE_EXECUTION_ERROR" });
+            failedChecks += 1;
+            try {
+              await this.db.scanCheckOutcome.create({
+                data: {
+                  organizationId: auth.organizationId,
+                  scanRunId: scan.id,
+                  checkId: rule.ruleId,
+                  checkVersion: rule.version,
+                  resourceIdentity: `${resource.awsAccountId}:${resource.region}:${resource.resourceId}`,
+                  status: "ERROR",
+                  startedAt: checkStartedAt,
+                  finishedAt: new Date(),
+                  durationMs: Math.max(0, Date.now() - checkStartedAt.getTime()),
+                  errorClass: "RULE_EXECUTION_ERROR",
+                  errorMessage: "Rule execution failed.",
+                  correlationId,
+                  attempt: 1,
+                },
+              });
+            } catch (outcomeError) {
+              if (this.persistenceCode(outcomeError) !== "P2002") throw outcomeError;
+            }
           }
         }
         if (resourceEvaluated) evaluatedResources += 1;
@@ -345,13 +582,22 @@ export class SecurityAnalysisService {
           });
         }
 
-        const status = errors.length > 0 || insufficientEvidence > 0 || failedResources > 0 ? "PARTIAL" as const : "COMPLETED" as const;
+        const cancellation = await tx.securityScanRun.findUnique({ where: { id: scan.id }, select: { status: true } });
+        const status = cancellation?.status === "CANCELLING"
+          ? "CANCELLED" as const
+          : errors.length > 0 || insufficientEvidence > 0 || failedResources > 0 ? "PARTIAL" as const : "COMPLETED" as const;
+        const finishedAt = new Date();
         const completed = await tx.securityScanRun.update({
           where: { id: scan.id },
           data: {
             status,
-            finishedAt: new Date(),
+            finishedAt,
+            durationMs: scan.startedAt ? Math.max(0, finishedAt.getTime() - scan.startedAt.getTime()) : null,
+            ...(status === "CANCELLED" ? { terminalReason: "client_requested" } : {}),
             totalResources: allResources.length,
+            totalChecks: activeResources.reduce((total, resource) => total + applicableSecurityRules(resource, activeRules).length, 0),
+            completedChecks,
+            failedChecks,
             evaluatedResources,
             insufficientEvidence,
             failedResources,
@@ -371,6 +617,20 @@ export class SecurityAnalysisService {
           ...(errors.length ? { reason: `${errors.length} rule execution error(s)` } : {}),
           correlationId,
           metadata: { status, findingsCreated, findingsResolved, insufficientEvidence },
+        });
+        const eventType = status === "COMPLETED"
+          ? "ScanCompleted"
+          : status === "PARTIAL" ? "ScanPartial" : status === "CANCELLED" ? "ScanCancelled" : "ScanFailed";
+        await tx.scanEvent.upsert({
+          where: { scanRunId_eventType: { scanRunId: scan.id, eventType } },
+          create: {
+            organizationId: auth.organizationId,
+            scanRunId: scan.id,
+            eventType,
+            correlationId,
+            payload: jsonValue({ status, findingsCreated, findingsResolved, completedChecks, failedChecks }),
+          },
+          update: {},
         });
         return { completed, findingsCreated, findingsResolved };
       });
@@ -399,12 +659,45 @@ export class SecurityAnalysisService {
     }
   }
 
-  async listScans(auth: SecurityAuthorization, accountId: string) {
+  async listScans(auth: SecurityAuthorization, accountId: string, filters: ScanFilters = { page: 1, pageSize: 50 }) {
     requireSecurityPermission(auth, "findings.read");
     safeUuid(accountId, "accountId");
     await this.findAccount(auth, accountId);
-    const runs = await this.db.securityScanRun.findMany({ where: { organizationId: auth.organizationId, accountId }, orderBy: { createdAt: "desc" }, take: 100 });
-    return runs.map(toPublicScan);
+    const where: Prisma.SecurityScanRunWhereInput = {
+      organizationId: auth.organizationId,
+      accountId,
+      ...(filters.status ? { status: filters.status } : {}),
+      ...(filters.from || filters.to ? { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } } : {}),
+    };
+    const [runs, total] = await this.db.$transaction([
+      this.db.securityScanRun.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: (filters.page - 1) * filters.pageSize,
+        take: filters.pageSize,
+      }),
+      this.db.securityScanRun.count({ where }),
+    ]);
+    return { scans: runs.map(toPublicScan), page: filters.page, pageSize: filters.pageSize, total, hasNextPage: filters.page * filters.pageSize < total };
+  }
+
+  async queueBacklog(auth: SecurityAuthorization) {
+    requireSecurityPermission(auth, "scan.read");
+    const where = { organizationId: auth.organizationId };
+    const [queued, running, failed, deadLetter, oldest] = await Promise.all([
+      this.db.scanJob.count({ where: { ...where, status: "QUEUED" } }),
+      this.db.scanJob.count({ where: { ...where, status: "RUNNING" } }),
+      this.db.securityScanRun.count({ where: { ...where, status: "FAILED" } }),
+      this.db.scanJob.count({ where: { ...where, status: "DEAD_LETTER" } }),
+      this.db.scanJob.findFirst({ where: { ...where, status: "QUEUED" }, orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
+    ]);
+    return {
+      queuedCount: queued,
+      runningCount: running,
+      failedCount: failed,
+      deadLetterCount: deadLetter,
+      oldestQueuedAgeMs: oldest ? Math.max(0, Date.now() - oldest.createdAt.getTime()) : null,
+    };
   }
 
   async getScan(auth: SecurityAuthorization, scanId: string) {

@@ -1,12 +1,27 @@
 import { loadConfig } from "./config.js";
 import { disconnectPrisma } from "./database.js";
+import { getPrismaClient } from "./database.js";
 import { StructuredLogger } from "./logger.js";
 import { createAppServer } from "./server.js";
+import { SecurityAnalysisService } from "./security-service.js";
+import { ScanWorker } from "./scan-worker.js";
+import { randomUUID } from "node:crypto";
 
 try {
   const config = loadConfig();
   const logger = new StructuredLogger(config.logLevel);
   const server = createAppServer(config, logger);
+  const db = getPrismaClient();
+  const security = new SecurityAnalysisService(db);
+  const worker = new ScanWorker(db, {
+    execute: async (_job, scan) => security.executeQueuedRun(scan.id),
+  }, `scan-worker-${randomUUID()}`);
+  const workerTimer = setInterval(() => {
+    void worker.runOnce().catch((error: unknown) => logger.error("scan.worker.loop.failed", {
+      errorType: error instanceof Error ? error.name : typeof error,
+    }));
+  }, 500);
+  workerTimer.unref();
   server.listen(config.port, config.host, () => {
     logger.info("application.started", {
       host: config.host,
@@ -17,6 +32,7 @@ try {
   const shutdown = (signal: string) => {
     logger.info("application.shutdown.requested", { signal });
     server.close(() => {
+      clearInterval(workerTimer);
       void disconnectPrisma().finally(() => process.exit(0));
     });
   };
