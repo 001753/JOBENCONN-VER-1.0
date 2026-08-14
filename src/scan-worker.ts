@@ -107,7 +107,7 @@ export class ScanWorker {
   private async recoverExpiredLeases(now: Date): Promise<void> {
     const expired = await this.db.scanJob.findMany({
       where: { status: "RUNNING", leaseExpiresAt: { lt: now } },
-      select: { id: true, scanRunId: true },
+      select: { id: true, scanRunId: true, organizationId: true, correlationId: true },
       take: 100,
     });
     for (const job of expired) {
@@ -139,7 +139,7 @@ export class ScanWorker {
 
   private async handleFailure(job: Job, scan: Scan, error: unknown): Promise<void> {
     const classification = classifyRetry(error);
-    const message = error instanceof Error ? error.message.slice(0, 500) : "Unknown scan execution failure.";
+    const message = `Scan execution failed (${classification.category}).`;
     await this.db.$transaction(async (tx) => {
       const current = await tx.scanJob.findUniqueOrThrow({ where: { id: job.id } });
       const retry = classification.retryable && current.attempt <= MAX_RETRIES;
@@ -165,7 +165,7 @@ export class ScanWorker {
       await tx.securityScanRun.updateMany({ where: { id: scan.id, leaseOwner: this.workerId, status: "RUNNING" }, data: { status: terminalStatus, finishedAt: new Date(), leaseOwner: null, leaseAcquiredAt: null, leaseExpiresAt: null, activeKey: null, lastErrorCategory: classification.category, lastError: message, terminalReason: terminalStatus === "DEAD_LETTER" ? "retry_exhausted" : "unrecoverable_execution_failure" } });
       await new AuditEventRepository(tx).append(systemContext(), {
         organizationId: scan.organizationId,
-        action: "SCAN_DEAD_LETTERED",
+        action: terminalStatus === "DEAD_LETTER" ? "SCAN_DEAD_LETTERED" : "SCAN_FAILED",
         purpose: "retain an unsafe or exhausted scan job for operator recovery",
         targetType: "security_scan",
         targetId: scan.id,
@@ -175,8 +175,8 @@ export class ScanWorker {
         metadata: { attempt: current.attempt, category: classification.category, terminalStatus },
       });
       await tx.scanEvent.upsert({
-        where: { scanRunId_eventType: { scanRunId: scan.id, eventType: terminalStatus === "DEAD_LETTER" ? "ScanFailed" : "ScanFailed" } },
-        create: { organizationId: scan.organizationId, scanRunId: scan.id, eventType: "ScanFailed", correlationId: scan.correlationId, payload: { status: terminalStatus, reason: classification.category } },
+        where: { scanRunId_eventType_attempt: { scanRunId: scan.id, eventType: terminalStatus === "DEAD_LETTER" ? "ScanDeadLettered" : "ScanFailed", attempt: current.attempt } },
+        create: { organizationId: scan.organizationId, scanRunId: scan.id, eventType: terminalStatus === "DEAD_LETTER" ? "ScanDeadLettered" : "ScanFailed", attempt: current.attempt, correlationId: scan.correlationId, payload: { status: terminalStatus, reason: classification.category } },
         update: {},
       });
     });

@@ -1,0 +1,576 @@
+MASTER PROMPT 06-B
+JOBEN ENTERPRISE — M-03 FINAL COMPLETION & VERIFICATION GATE
+
+MISSION
+
+CONTINUE THE EXISTING JOBEN ENTERPRISE REPOSITORY.
+
+DO NOT REBUILD MASTER PROMPT 06.
+
+DO NOT REWRITE EXISTING IMPLEMENTATION.
+
+MASTER PROMPT 06-A WAS PARTIALLY EXECUTED BUT STOPPED
+BEFORE FINAL VERIFICATION BECAUSE THE FREE QUOTA WAS EXHAUSTED.
+
+YOUR JOB IS ONLY:
+
+1. FINISH ANY REMAINING M-03 GAPS
+2. VERIFY THE PATCHES ALREADY IMPLEMENTED
+3. FIX ONLY REAL FAILURES
+4. RUN THE COMPLETE M-03 ACCEPTANCE GATE
+5. PRODUCE FINAL PROOF
+6. MARK M-03 COMPLETE ONLY IF ALL GATES PASS
+
+============================================================
+SOURCE OF TRUTH
+============================================================
+
+Use the existing JOBEN PRD as source of truth.
+
+M-03 = Scan & Job Orchestrator.
+
+Required:
+
+schedule / Scan Now
+→ idempotency
+→ queue
+→ lease
+→ worker
+→ progress
+→ per-check outcome
+→ append-only result
+→ aggregate boundary
+→ notification boundary
+→ completed / partial / failed
+
+States:
+
+queued
+running
+cancelling
+completed
+partial
+failed
+cancelled
+dead_letter
+
+Only authorized server/worker transitions.
+
+============================================================
+IMPORTANT — GAP ONLY
+============================================================
+
+FIRST AUDIT THE CURRENT REPOSITORY.
+
+DO NOT REIMPLEMENT FEATURES THAT ALREADY EXIST.
+
+For each M-03 requirement classify:
+
+PASS
+PARTIAL
+FAIL
+MISSING
+
+Then:
+
+PASS      → leave unchanged
+PARTIAL   → complete
+FAIL      → fix
+MISSING   → implement minimally
+
+NO UNRELATED REFACTOR.
+
+NO NEW ARCHITECTURE.
+
+NO DUPLICATE QUEUE.
+
+NO DUPLICATE SCAN MODEL.
+
+NO DUPLICATE RBAC.
+
+NO DUPLICATE PROVIDER ADAPTER.
+
+============================================================
+PHASE 1 — VERIFY EXISTING PATCH
+============================================================
+
+Immediately verify the changes already made by Prompt 06-A:
+
+- authorization changes
+- security-service changes
+- schema changes
+- migration
+- scan-orchestration
+- scan-worker
+- server routes
+- index/runtime
+- schedule implementation
+- metrics
+- replay
+- cursor pagination
+- heartbeat
+- lease recovery
+- retry classification
+- cancel race
+- provider boundary
+
+Do not assume these are correct merely because code exists.
+
+============================================================
+PHASE 2 — DATABASE
+============================================================
+
+Run:
+
+Prisma generate
+Prisma validate
+migration status
+typecheck
+
+Apply only the required non-destructive migration.
+
+DO NOT reset database.
+
+Confirm:
+
+ScanRun
+ScanJob
+ScanCheckOutcome
+ScanEvent
+schedule
+lease
+retry
+idempotency
+operator/replay data
+
+are valid.
+
+If schema error exists:
+
+FIX IT.
+
+============================================================
+PHASE 3 — BUILD
+============================================================
+
+Run:
+
+typecheck
+build
+
+Fix ALL M-03-related errors.
+
+Do not hide errors with:
+
+any
+ts-ignore
+unsafe casts
+fake fallback
+disabled tests
+
+============================================================
+PHASE 4 — M-03 TEST GATE
+============================================================
+
+Run existing tests first.
+
+Then ensure tests cover:
+
+1. Scan Now
+2. schedule
+3. idempotency
+4. same key + same payload
+5. same key + different payload → conflict
+6. concurrent duplicate Scan Now
+7. atomic queue claim
+8. lease acquisition
+9. heartbeat
+10. expired lease recovery
+11. worker crash recovery
+12. process restart recovery
+13. retry 429
+14. retry 500
+15. retry 503
+16. timeout retry
+17. 401 no retry
+18. 403 no retry
+19. maximum retry
+20. partial result
+21. total failure
+22. cancellation
+23. cancellation race
+24. dead-letter
+25. operator-only replay
+26. replay audit
+27. circuit breaker threshold
+28. circuit breaker recovery
+29. tenant isolation
+30. RBAC
+31. IDOR
+32. cursor pagination
+33. progress
+34. duration
+35. failure reason
+36. correlation ID
+37. secret redaction
+
+============================================================
+PHASE 5 — REAL POSTGRES
+============================================================
+
+Critical lifecycle tests MUST execute
+against real PostgreSQL.
+
+Do not rely only on mocks.
+
+Verify:
+
+create
+→ queue
+→ claim
+→ lease
+→ heartbeat
+→ execution
+→ result
+→ retry
+→ recovery
+→ terminal state.
+
+============================================================
+PHASE 6 — CONCURRENCY
+============================================================
+
+Run concurrent workers.
+
+PROOF REQUIRED:
+
+one queue job
+must not be simultaneously claimed
+by two valid workers.
+
+Run concurrent Scan Now requests.
+
+Same idempotency key:
+
+ONE logical ScanRun.
+
+============================================================
+PHASE 7 — RECOVERY
+============================================================
+
+Simulate:
+
+worker claims job
+→ worker terminates
+→ lease expires
+→ recovery worker claims job.
+
+Expected:
+
+job recoverable
+history preserved
+no duplicate logical run
+no corrupted state.
+
+============================================================
+PHASE 8 — SECURITY
+============================================================
+
+Verify:
+
+cross-tenant access = denied
+unauthorized scan = denied
+unauthorized cancel = denied
+unauthorized replay = denied
+arbitrary state transition = denied
+
+Secrets must not appear in:
+
+logs
+audit
+errors
+ScanRun
+ScanJob
+metrics
+responses
+
+============================================================
+PHASE 9 — API
+============================================================
+
+Verify existing M-03 API only.
+
+At minimum:
+
+POST scan
+GET scan
+GET progress
+POST cancel
+GET history
+
+Schedule API where implemented.
+
+HTTP 202 means QUEUED,
+NOT COMPLETED.
+
+State must come from server.
+
+Use standard error envelope.
+
+History uses cursor pagination,
+maximum limit,
+allowlisted sort,
+tenant filter before pagination.
+
+============================================================
+PHASE 10 — OPERATOR OBSERVABILITY
+============================================================
+
+Verify visibility of:
+
+queue backlog
+oldest queued age
+running count
+failed count
+dead-letter count
+retry count
+scan duration
+failure reason
+stuck lease
+
+Metrics must not contain secrets.
+
+============================================================
+PHASE 11 — AUDIT
+============================================================
+
+Verify audit records for:
+
+ScanRequested
+ScanQueued
+ScanStarted
+ScanCancelling
+ScanCancelled
+ScanCompleted
+ScanPartial
+ScanFailed
+RetryScheduled
+DeadLettered
+DeadLetterReplayed
+LeaseRecovered
+CircuitBreakerOpened
+CircuitBreakerRecovered
+ScheduleCreated
+ScheduleChanged
+SchedulePaused
+
+Each relevant event must contain:
+
+organization
+actor where applicable
+target
+timestamp
+reason
+correlationId
+
+============================================================
+PHASE 12 — APPEND-ONLY
+============================================================
+
+Historical execution outcomes must not be
+silently overwritten to manufacture success.
+
+Retry/recovery creates the correct attempt/version.
+
+Cancel does not delete execution history.
+
+============================================================
+PHASE 13 — FINAL RUNTIME SMOKE
+============================================================
+
+After tests pass:
+
+restart application.
+
+Verify:
+
+/health/live
+/health/ready
+
+Then execute a safe orchestration smoke path.
+
+Verify:
+
+Scan Now
+→ ScanRun
+→ queued
+→ worker
+→ running
+→ progress
+→ outcome
+→ terminal state.
+
+If AWS credentials are unavailable:
+
+DO NOT FAKE LIVE AWS SUCCESS.
+
+Use the existing provider boundary/test adapter
+only for deterministic orchestration verification.
+
+Clearly label live AWS verification as
+verification_required if credentials are unavailable.
+
+============================================================
+PHASE 14 — DOCUMENTATION / PROOF
+============================================================
+
+Only after implementation and tests pass:
+
+update/create M-03 completion dossier.
+
+Include:
+
+- scope
+- source of truth
+- state machine
+- queue
+- lease
+- heartbeat
+- retry
+- cancellation
+- dead-letter
+- circuit breaker
+- recovery
+- idempotency
+- schedule
+- RBAC
+- tenant isolation
+- audit
+- observability
+- known limitations
+- test matrix
+- runtime proof
+
+Create/update proof record:
+
+requirement
+implementation
+test
+expected
+actual
+evidence
+timestamp
+
+Update capability registry honestly.
+
+Do NOT mark live_verified
+unless the actual required verification
+has been performed.
+
+============================================================
+FINAL GATE
+============================================================
+
+M-03 is COMPLETE ONLY IF ALL PASS:
+
+[ ] Scan Now
+[ ] Schedule
+[ ] Idempotency
+[ ] Request hash conflict
+[ ] Queue
+[ ] Atomic claim
+[ ] Worker
+[ ] Lease
+[ ] Heartbeat
+[ ] Lease recovery
+[ ] Restart recovery
+[ ] State machine
+[ ] Progress
+[ ] Per-check outcome
+[ ] Append-only history
+[ ] Retry
+[ ] 401/403 no retry
+[ ] Partial result
+[ ] Cancel
+[ ] Cancel race
+[ ] Dead-letter
+[ ] Operator replay
+[ ] Circuit breaker
+[ ] Circuit breaker recovery
+[ ] Provider boundary
+[ ] Tenant isolation
+[ ] RBAC
+[ ] Audit
+[ ] Correlation ID
+[ ] Timeout
+[ ] Cursor pagination
+[ ] Metrics
+[ ] Operator visibility
+[ ] PostgreSQL integration tests
+[ ] Concurrency tests
+[ ] Recovery tests
+[ ] Security tests
+[ ] Migration
+[ ] Typecheck
+[ ] Build
+[ ] Full relevant test suite
+[ ] Runtime smoke
+[ ] Completion dossier
+[ ] Proof record
+[ ] Capability registry
+
+============================================================
+CREDIT EFFICIENCY
+============================================================
+
+DO NOT spend credits rebuilding working code.
+
+Use:
+
+AUDIT
+→ VERIFY
+→ FIX GAP
+→ TEST
+→ VERIFY AGAIN.
+
+Do not reinstall dependencies unless required.
+
+Do not redesign architecture.
+
+Do not build M-04/M-05/M-06.
+
+STOP after M-03 is verified.
+
+============================================================
+FINAL RESPONSE
+============================================================
+
+Return:
+
+M-03 STATUS:
+COMPLETE / PARTIAL / BLOCKED
+
+Then:
+
+1. What already existed
+2. What Prompt 06-A changed
+3. What 06-B fixed
+4. Remaining gaps
+5. Migration status
+6. Typecheck
+7. Build
+8. Tests
+9. PostgreSQL proof
+10. Concurrency proof
+11. Recovery proof
+12. Security proof
+13. Runtime proof
+14. Documentation/proof status
+
+IMPORTANT:
+
+NEVER claim COMPLETE if any mandatory gate is
+not actually verified.
+
+DO NOT PROCEED TO MASTER PROMPT 07
+until M-03 passes its gate.

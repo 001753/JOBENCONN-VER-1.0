@@ -533,13 +533,14 @@ model ScanEvent {
   organizationId String   @db.Uuid
   scanRunId      String   @db.Uuid
   eventType      String   @db.VarChar(64)
+  attempt        Int      @default(1)
   correlationId  String   @db.VarChar(128)
   payload        Json     @default("{}")
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   scanRun        SecurityScanRun @relation(fields: [scanRunId], references: [id], onDelete: Cascade)
 
-  @@unique([scanRunId, eventType])
+  @@unique([scanRunId, eventType, attempt])
   @@index([organizationId, createdAt])
   @@index([scanRunId, createdAt])
 }

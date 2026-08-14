@@ -42,7 +42,7 @@ export function classifyRetry(error: unknown): { retryable: boolean; category: s
   if (status === 401 || status === 403 || ["AUTHORIZATION_ERROR", "FORBIDDEN", "ROLE_INSUFFICIENT"].includes(code)) {
     return { retryable: false, category: status === 401 ? "unauthorized" : "forbidden" };
   }
-  if ([429, 500, 503].includes(status) || ["TIMEOUT", "TIMEOUT_ERROR", "ETIMEDOUT", "ECONNRESET", "AWS_ERROR", "DEPENDENCY_ERROR"].includes(code) || name.includes("timeout") || message.includes("timeout")) {
+  if ((status !== undefined && [429, 500, 503].includes(status)) || ["TIMEOUT", "TIMEOUT_ERROR", "ETIMEDOUT", "ECONNRESET", "AWS_ERROR", "DEPENDENCY_ERROR"].includes(code) || name.includes("timeout") || message.includes("timeout")) {
     return { retryable: true, category: status ? `http_${status}` : "transient" };
   }
   if (["VALIDATION_ERROR", "CONFLICT"].includes(code)) return { retryable: false, category: code.toLowerCase() };
@@ -50,7 +50,7 @@ export function classifyRetry(error: unknown): { retryable: boolean; category: s
 }
 
 export function retryDelayMs(attempt: number, jitterMs = 0): number {
-  const safeAttempt = Math.min(Math.max(attempt, 1), 3);
+  const safeAttempt = Math.min(Math.max(Math.floor(attempt), 1), 30);
   const boundedJitter = Math.min(Math.max(Math.floor(jitterMs), 0), 250);
   return Math.min(60_000, 1_000 * (2 ** (safeAttempt - 1)) + boundedJitter);
 }

@@ -317,13 +317,13 @@ export class SecurityAnalysisService {
       if (status === "CANCELLED") await tx.scanJob.updateMany({ where: { scanRunId: scanId, status: "QUEUED" }, data: { status: "CANCELLED" } });
       await new AuditEventRepository(tx).append(auth.context, {
         actorUserId: auth.actorUserId,
-        action: "SCAN_CANCELLED",
+        action: status === "CANCELLED" ? "SCAN_CANCELLED" : "SCAN_CANCELLING",
         purpose: "request safe cancellation of scan execution",
         targetType: "security_scan",
         targetId: scanId,
         result: "SUCCESS",
         correlationId,
-        metadata: { priorStatus: current.status },
+        metadata: { priorStatus: current.status, requestedStatus: status },
       });
       return tx.securityScanRun.findUniqueOrThrow({ where: { id: scanId } });
     });
@@ -665,9 +665,16 @@ export class SecurityAnalysisService {
             ruleErrors: jsonValue(errors),
           },
         });
-        await audit.append(auth.context, {
-          actorUserId: auth.actorUserId,
-          action: status === "PARTIAL" ? "SCAN_PARTIAL" : "SCAN_COMPLETED",
+      const completionAction = status === "COMPLETED"
+        ? "SCAN_COMPLETED"
+        : status === "PARTIAL"
+          ? "SCAN_PARTIAL"
+          : status === "CANCELLED"
+            ? "SCAN_CANCELLED"
+            : "SCAN_FAILED";
+      await audit.append(auth.context, {
+        actorUserId: auth.actorUserId,
+        action: completionAction,
           purpose: "complete deterministic AWS security analysis",
           targetType: "security_scan",
           targetId: scan.id,
@@ -680,11 +687,12 @@ export class SecurityAnalysisService {
           ? "ScanCompleted"
           : status === "PARTIAL" ? "ScanPartial" : status === "CANCELLED" ? "ScanCancelled" : "ScanFailed";
         await tx.scanEvent.upsert({
-          where: { scanRunId_eventType: { scanRunId: scan.id, eventType } },
+          where: { scanRunId_eventType_attempt: { scanRunId: scan.id, eventType, attempt: executionAttempt } },
           create: {
             organizationId: auth.organizationId,
             scanRunId: scan.id,
             eventType,
+            attempt: executionAttempt,
             correlationId,
             payload: jsonValue({ status, findingsCreated, findingsResolved, completedChecks, failedChecks }),
           },
@@ -718,7 +726,7 @@ export class SecurityAnalysisService {
   }
 
   async listScans(auth: SecurityAuthorization, accountId: string, filters: ScanFilters = { page: 1, pageSize: 50 }) {
-    requireSecurityPermission(auth, "findings.read");
+    requireSecurityPermission(auth, "scan.read");
     safeUuid(accountId, "accountId");
     await this.findAccount(auth, accountId);
     const cursor = filters.cursor ? decodeScanCursor(filters.cursor) : undefined;
@@ -732,15 +740,13 @@ export class SecurityAnalysisService {
     const useCursor = Boolean(filters.cursor);
     const page = filters.page ?? 1;
     const take = Math.min(Math.max(filters.pageSize, 1), 100);
-    const [runs, total] = await this.db.$transaction([
-      this.db.securityScanRun.findMany({
-        where,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        ...(!useCursor ? { skip: (page - 1) * take } : {}),
-        take: useCursor ? take + 1 : take,
-      }),
-      ...(useCursor ? [Promise.resolve(null)] : [this.db.securityScanRun.count({ where })]),
-    ]);
+    const runs = await this.db.securityScanRun.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      ...(!useCursor ? { skip: (page - 1) * take } : {}),
+      take: useCursor ? take + 1 : take,
+    });
+    const total = useCursor ? null : await this.db.securityScanRun.count({ where });
     const hasNextPage = useCursor ? runs.length > take : page * take < (total ?? 0);
     const visibleRuns = useCursor && hasNextPage ? runs.slice(0, take) : runs;
     const last = visibleRuns.at(-1);
@@ -847,7 +853,7 @@ export class SecurityAnalysisService {
   }
 
   async getScan(auth: SecurityAuthorization, scanId: string) {
-    requireSecurityPermission(auth, "findings.read");
+    requireSecurityPermission(auth, "scan.read");
     safeUuid(scanId, "scanId");
     const scan = await this.db.securityScanRun.findFirst({ where: { id: scanId, organizationId: auth.organizationId } });
     if (!scan) throw new AppError("NOT_FOUND", "Security scan not found.");

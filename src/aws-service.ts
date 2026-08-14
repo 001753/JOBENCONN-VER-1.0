@@ -227,7 +227,7 @@ export class AwsService {
         });
         const updated = await tx.awsConnection.update({
           where: { id: connection.id },
-          data: { status: "ACTIVE", awsAccountId: identity.accountId, callerArn: identity.arn, callerUserId: identity.userId, lastErrorCategory: null, lastVerifiedAt: now },
+          data: { status: "ACTIVE", awsAccountId: identity.accountId, callerArn: identity.arn, callerUserId: identity.userId, lastErrorCategory: null, lastVerifiedAt: now, ...(connection.status === "ERROR" || connection.scanFailureStreak >= 5 ? { scanFailureStreak: 0 } : {}) },
         });
         await new AuditEventRepository(tx).append(auth.context, {
           actorUserId: auth.actorUserId,
@@ -239,6 +239,19 @@ export class AwsService {
           correlationId,
           metadata: { accountId: identity.accountId },
         });
+        if (connection.status === "ERROR" || connection.scanFailureStreak >= 5) {
+          await new AuditEventRepository(tx).append(auth.context, {
+            actorUserId: auth.actorUserId,
+            action: "CIRCUIT_BREAKER_RECOVERED",
+            purpose: "record successful recovery of the scan circuit breaker",
+            targetType: "aws_connection",
+            targetId: connection.id,
+            result: "SUCCESS",
+            reason: "AWS connection verification succeeded after the scan circuit breaker opened.",
+            correlationId,
+            metadata: { previousFailureStreak: connection.scanFailureStreak },
+          });
+        }
         return { connection: updated, account };
       });
       return { connection: toPublicConnection(result.connection), account: result.account };

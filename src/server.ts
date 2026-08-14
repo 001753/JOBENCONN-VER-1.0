@@ -270,7 +270,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     const accountId = securityScanMatch[1];
     if (!accountId) throw new AppError("NOT_FOUND", "Route not found.");
     if (method === "GET") {
-      const auth = await securityAuthorization("findings.read");
+      const auth = await securityAuthorization("scan.read");
       const url = new URL(request.url ?? "/", "http://joben.local");
       const parsePositive = (value: string | null, fallback: number, max: number, field: string): number => {
         if (value === null) return fallback;
@@ -304,7 +304,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     if (method === "POST") {
       await requireCsrf();
       const body = await readJson(request);
-      const auth = await securityAuthorization("findings.run");
+      const auth = await securityAuthorization("scan.create");
       const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined;
       sendJson(response, 202, { scan: await security.enqueueScan(auth, accountId, correlationId, idempotencyKey) });
       return;
