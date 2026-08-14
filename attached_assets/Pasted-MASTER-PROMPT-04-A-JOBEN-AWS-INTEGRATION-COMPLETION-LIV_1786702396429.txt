@@ -1,0 +1,1220 @@
+MASTER PROMPT 04.A — JOBEN
+AWS INTEGRATION COMPLETION + LIVE VERIFICATION + HARDENING
+
+MODE:
+CONTINUE ONLY
+NO REBUILD
+NO DUPLICATION
+PRECISION-FIRST
+CREDIT-EFFICIENT
+FULL-POWER
+REAL-WORK
+COMPLETED
+PRODUCTION-GRADE
+
+============================================================
+0. CRITICAL CONTINUATION RULE
+============================================================
+
+INI ADALAH LANJUTAN LANGSUNG DARI MASTER PROMPT 04.
+
+JANGAN membuat project baru.
+
+JANGAN mengulang MASTER PROMPT 04.
+
+JANGAN menghapus implementation yang sudah berhasil.
+
+JANGAN membuat ulang:
+
+- AWS connection model
+- AWS account model
+- AWS region model
+- AWS resource model
+- discovery run
+- AWS adapter
+- authorization
+- audit
+- existing migration
+- existing tests
+
+Repo saat ini SUDAH memiliki hasil Prompt 04.
+
+Gunakan implementasi yang sudah ada sebagai BASELINE.
+
+Pertama-tama:
+
+INSPECT → AUDIT → IDENTIFY GAP → IMPLEMENT ONLY GAP → TEST → VERIFY.
+
+============================================================
+1. KNOWN CURRENT STATE
+============================================================
+
+Menurut hasil eksekusi Prompt 04:
+
+SUDAH ADA:
+
+- AWS SDK v3 modular
+- AWS connection schema
+- AWS account schema
+- AWS region schema
+- AWS resource schema
+- discovery run
+- tenant-scoped AWS service
+- read-only AWS adapter
+- protected AWS API
+- audit integration
+- bounded retry foundation
+- Prisma migration:
+  20260814095030_p04_aws_discovery
+- TypeScript/build berhasil
+- 23 test berhasil
+- database migration berhasil
+- STS identity fake/test adapter berhasil
+- region discovery fake/test berhasil
+- EC2/S3/IAM normalization test berhasil
+- replay/idempotency test berhasil
+- tenant isolation test berhasil
+- account isolation test berhasil
+- revoke test berhasil
+- read-only boundary test berhasil
+- liveness endpoint 200
+- readiness endpoint 200
+- AWS protected route tanpa session → 401
+
+PENTING:
+
+Jangan menganggap semua item di atas harus dibuat ulang.
+
+Verifikasi implementasi aktual terlebih dahulu.
+
+============================================================
+2. CURRENT KNOWN LIMITATION
+============================================================
+
+Prompt 04 sebelumnya secara eksplisit menyatakan:
+
+LIVE AWS VERIFICATION = PENDING
+
+Karena environment belum menyediakan
+AWS live credentials/provider yang dapat diverifikasi.
+
+Maka Prompt 04.A bertugas:
+
+A. memperkuat live AWS verification path
+B. memastikan default credential chain benar
+C. memastikan configuration readiness benar
+D. memastikan live verification dapat dijalankan
+   jika AWS credentials tersedia
+E. memperbaiki gap operational/security yang nyata
+F. memastikan production readiness tanpa fake success
+
+JANGAN pernah membuat fake live AWS success.
+
+============================================================
+3. FIRST ACTION — FULL AUDIT
+============================================================
+
+Sebelum coding:
+
+inspect:
+
+- package.json
+- prisma/schema.prisma
+- migration 20260814095030_p04_aws_discovery
+- AWS adapter
+- AWS credential provider
+- AWS connection service
+- discovery service
+- discovery job
+- AWS routes
+- authorization
+- audit
+- error handling
+- retry logic
+- tests
+- documentation
+- capability registry
+- environment configuration
+
+Cari secara eksplisit:
+
+TODO
+FIXME
+placeholder
+mock-only path
+hardcoded AWS data
+fake verification
+incomplete lifecycle
+missing API validation
+missing error mapping
+missing transaction
+missing unique constraint
+missing authorization
+missing audit
+missing secret redaction
+missing timeout
+missing retry
+missing pagination
+missing cleanup
+
+JANGAN memperbaiki hal yang tidak terkait Prompt 04.
+
+============================================================
+4. LIVE AWS CREDENTIAL STRATEGY
+============================================================
+
+Gunakan official AWS SDK v3 credential provider chain.
+
+Prioritas:
+
+1. environment credentials
+2. AWS profile/shared credentials jika supported
+3. IAM role/container/instance role
+4. other official AWS credential providers
+
+Jangan membuat custom credential parser
+jika official provider sudah tersedia.
+
+JANGAN meminta AWS access key dari frontend.
+
+JANGAN menyimpan secret plaintext.
+
+============================================================
+5. ENVIRONMENT CONFIGURATION
+============================================================
+
+Review config system.
+
+Support production-safe configuration.
+
+Jika memang diperlukan:
+
+AWS_REGION
+AWS_ROLE_ARN
+AWS_EXTERNAL_ID
+AWS_SESSION_NAME
+
+Hanya tambahkan environment variable
+yang benar-benar diperlukan.
+
+JANGAN memaksa AWS_SECRET_ACCESS_KEY
+jika default credential provider
+sudah mendukung environment/role/profile.
+
+Semua configuration harus divalidasi
+dengan existing config architecture.
+
+============================================================
+6. LIVE VERIFY OPERATION
+============================================================
+
+Pastikan terdapat satu jalur nyata:
+
+AWS Connection
+→ Credential Provider
+→ STS GetCallerIdentity
+→ AWS Account ID
+→ Caller ARN
+→ persisted verification
+
+Hasil sukses harus berasal dari
+actual AWS API response.
+
+Tidak boleh berasal dari:
+
+client account ID
+mock
+hardcoded account ID
+fake adapter dalam production
+
+============================================================
+7. LIVE VERIFICATION API
+============================================================
+
+Audit existing endpoint.
+
+Jika sudah ada:
+
+POST /aws/connections/:id/verify
+
+gunakan.
+
+Jangan membuat endpoint duplicate.
+
+Verification harus:
+
+authenticate
+→ authorize
+→ load organization
+→ load connection
+→ resolve credential
+→ call STS
+→ verify identity
+→ persist account
+→ update connection state
+→ audit
+
+============================================================
+8. ACCOUNT IDENTITY CONSISTENCY
+============================================================
+
+Jika AWS connection sebelumnya menyimpan
+account ID X tetapi STS mengembalikan Y:
+
+JANGAN otomatis overwrite.
+
+Treat as identity mismatch.
+
+Expected:
+
+VERIFICATION_FAILED
+atau equivalent secure state.
+
+Audit event:
+
+AWS_CONNECTION_IDENTITY_MISMATCH
+
+Jangan expose credential details.
+
+============================================================
+9. CALLER ARN
+============================================================
+
+Persist caller ARN hanya jika
+architecture membutuhkan.
+
+Jika disimpan:
+
+- organization scoped
+- sanitized
+- no credential material
+
+Gunakan untuk evidence/debugging,
+bukan sebagai credential.
+
+============================================================
+10. CREDENTIAL FAILURE CLASSIFICATION
+============================================================
+
+Pastikan actual AWS errors dipetakan:
+
+INVALID_CREDENTIALS
+ACCESS_DENIED
+THROTTLED
+NETWORK_ERROR
+AWS_SERVICE_ERROR
+IDENTITY_MISMATCH
+TIMEOUT
+UNKNOWN
+
+Frontend hanya menerima safe message.
+
+Jangan expose:
+
+AWS secret
+credential token
+raw SDK stack
+internal filesystem
+database credentials
+
+============================================================
+11. TIMEOUT HARDENING
+============================================================
+
+Pastikan AWS client memiliki
+bounded request timeout.
+
+Jika sudah ada:
+
+reuse.
+
+Jika belum:
+
+implement minimal mechanism
+yang compatible dengan AWS SDK v3.
+
+Tidak boleh ada AWS request
+yang menggantung tanpa batas.
+
+============================================================
+12. RETRY HARDENING
+============================================================
+
+Review retry.
+
+Retry hanya:
+
+- throttling
+- transient network
+- temporary 5xx
+
+JANGAN retry:
+
+- invalid credentials
+- AccessDenied
+- validation error
+- identity mismatch
+
+Bound:
+
+maximum attempts
++
+maximum elapsed time
+
+Gunakan jitter bila compatible.
+
+============================================================
+13. DISCOVERY JOB HARDENING
+============================================================
+
+Review discovery lifecycle:
+
+QUEUED
+RUNNING
+COMPLETED
+PARTIAL
+FAILED
+CANCELLED
+
+Pastikan tidak ada:
+
+RUNNING permanen.
+
+Jika worker crash:
+
+job harus dapat dipulihkan/
+ditandai failed berdasarkan existing architecture.
+
+JANGAN membangun queue baru
+jika Prompt 02 sudah menyediakan queue.
+
+============================================================
+14. DISCOVERY IDEMPOTENCY
+============================================================
+
+Audit existing implementation.
+
+Run:
+
+discovery A
+discovery A lagi
+discovery A secara concurrent
+
+Expected:
+
+NO DUPLICATE RESOURCES.
+
+Database constraint harus menjadi
+last line of defense.
+
+Jika gap ditemukan:
+
+implement.
+
+Jika sudah benar:
+
+jangan ubah.
+
+============================================================
+15. RESOURCE NATURAL IDENTITY
+============================================================
+
+Verify uniqueness:
+
+organizationId
+awsAccountId
+region
+service
+resourceType
+resourceId
+
+atau equivalent canonical identity.
+
+Jangan menggunakan hanya resourceId.
+
+Karena resource ID dapat overlap
+antar account/region/service.
+
+============================================================
+16. STALE RESOURCE HANDLING
+============================================================
+
+Review discovery reconciliation.
+
+Resource yang sebelumnya ada
+tetapi tidak muncul lagi:
+
+JANGAN langsung hard-delete.
+
+Pastikan lifecycle dapat menunjukkan
+resource sudah tidak terlihat.
+
+Gunakan existing status model.
+
+Jika belum tersedia:
+
+implement minimal safe state.
+
+============================================================
+17. REGION FAILURE ISOLATION
+============================================================
+
+Test actual behavior:
+
+Region A sukses
+Region B AccessDenied
+Region C throttled
+
+Expected:
+
+discovery tidak langsung menjadi
+global failure jika partial discovery
+masih valid.
+
+Status:
+
+PARTIAL
+
+dan error per region dicatat.
+
+============================================================
+18. AWS SERVICE FAILURE ISOLATION
+============================================================
+
+Contoh:
+
+EC2 sukses
+S3 AccessDenied
+IAM sukses
+
+Jangan membuang hasil EC2/IAM.
+
+Persist:
+
+successful discovery
++
+service-level failure.
+
+Status overall:
+
+PARTIAL.
+
+============================================================
+19. AWS READ-ONLY GUARANTEE
+============================================================
+
+Audit seluruh AWS integration code.
+
+Cari semua:
+
+client.send
+AWS commands
+service operations
+
+Pastikan discovery hanya menggunakan
+read operations.
+
+Tidak boleh ada:
+
+Create
+Delete
+Update
+Modify
+Terminate
+Start
+Stop
+Reboot
+
+di discovery path.
+
+Tambahkan test regression jika ada gap.
+
+============================================================
+20. IAM LEAST PRIVILEGE DOCUMENTATION
+============================================================
+
+Review documentation.
+
+Harus ada exact AWS actions
+yang diperlukan implementation saat ini.
+
+JANGAN mendokumentasikan permission
+yang tidak digunakan.
+
+JANGAN meminta AdministratorAccess.
+
+Jika implementation memerlukan action tambahan:
+
+tambahkan hanya action tersebut.
+
+============================================================
+21. AWS CONNECTION ROTATION
+============================================================
+
+Review existing credential rotation.
+
+Expected safe lifecycle:
+
+new credential
+→ verify
+→ activate
+→ old credential no longer used
+
+Jangan mengganti credential aktif
+sebelum credential baru terbukti valid.
+
+Jika implementation belum memiliki
+rotation endpoint/service:
+
+implement minimal production-safe abstraction
+hanya jika Prompt 04 scope membutuhkannya.
+
+============================================================
+22. REVOKED CONNECTION
+============================================================
+
+Verify:
+
+connection ACTIVE
+→ revoke
+→ discovery request
+
+Expected:
+
+DENIED.
+
+Tidak boleh ada AWS API request
+setelah revoke authorization gagal.
+
+Test.
+
+============================================================
+23. AUTHORIZATION MATRIX
+============================================================
+
+Review permissions.
+
+Minimal:
+
+aws.connection.read
+aws.connection.create
+aws.connection.update
+aws.connection.revoke
+aws.discovery.run
+aws.inventory.read
+
+Gunakan existing permission vocabulary.
+
+Test:
+
+authorized user → ALLOW
+unauthorized user → DENY
+
+============================================================
+24. TENANT ISOLATION
+============================================================
+
+Re-run actual database tests.
+
+Org A:
+
+Connection A
+Account A
+Resource A
+
+Org B:
+
+Connection B
+Account B
+Resource B
+
+Try:
+
+A reads B
+A verifies B
+A discovers B
+A reads B inventory
+A revokes B
+
+ALL MUST DENY.
+
+Do not rely solely on frontend filtering.
+
+============================================================
+25. AUDIT COMPLETENESS
+============================================================
+
+Verify durable audit for:
+
+connection created
+connection verification requested
+verification succeeded
+verification failed
+identity mismatch
+connection revoked
+discovery requested
+discovery started
+discovery completed
+discovery partial
+discovery failed
+
+NO secrets.
+
+NO credentials.
+
+NO raw sensitive headers.
+
+============================================================
+26. CORRELATION ID
+============================================================
+
+Verify:
+
+HTTP request
+→ service
+→ discovery job
+→ AWS operation
+→ audit
+
+maintains correlation context.
+
+Jika async:
+
+persist correlation ID with job.
+
+============================================================
+27. API INPUT SECURITY
+============================================================
+
+Review all AWS endpoints.
+
+Validate:
+
+IDs
+UUIDs
+account ID
+region
+role ARN
+external ID
+idempotency key
+
+Reject malformed input.
+
+Jangan melakukan AWS API call
+sebelum validation + authorization.
+
+============================================================
+28. DATABASE INTEGRITY
+============================================================
+
+Review Prisma schema.
+
+Ensure database constraints protect:
+
+tenant identity
+account uniqueness
+resource uniqueness
+foreign key relationships
+connection lifecycle
+
+Jangan menggunakan application check
+sebagai satu-satunya duplicate protection.
+
+============================================================
+29. TRANSACTION SAFETY
+============================================================
+
+Review verification flow.
+
+Jika:
+
+AWS verification sukses
+tetapi DB persistence gagal
+
+jangan meninggalkan state
+yang misleading.
+
+Gunakan transaction
+untuk DB changes yang atomic.
+
+Jangan melakukan AWS API call
+di dalam DB transaction
+jika itu menyebabkan long-lived transaction.
+
+============================================================
+30. SECURITY LOGGING
+============================================================
+
+Search logs for:
+
+AWS_ACCESS_KEY
+AWS_SECRET
+secretAccessKey
+sessionToken
+credential
+authorization header
+cookie
+
+Pastikan tidak ada sensitive material
+yang masuk log.
+
+Implement redaction jika diperlukan.
+
+============================================================
+31. PRODUCTION CONFIGURATION
+============================================================
+
+Review:
+
+DATABASE_URL
+NODE_ENV
+AWS credentials
+logging
+CORS
+cookie
+session
+port
+health/readiness
+
+Jangan merusak existing auth configuration.
+
+Health endpoint harus tetap hidup
+ketika AWS belum dikonfigurasi.
+
+Readiness harus mencerminkan
+dependency yang memang diperlukan.
+
+============================================================
+32. LIVE AWS SMOKE TEST
+============================================================
+
+PENTING:
+
+Jalankan actual AWS smoke test HANYA
+jika environment memiliki valid AWS
+credential/provider.
+
+Test minimal:
+
+STS GetCallerIdentity
+
+Jika tersedia:
+
+EC2 DescribeRegions
+
+Jangan melakukan mutation.
+
+Jika credentials tidak tersedia:
+
+DO NOT invent success.
+
+Return:
+
+LIVE AWS VERIFICATION:
+PENDING — AWS credentials/provider unavailable.
+
+============================================================
+33. OPTIONAL LIVE DISCOVERY
+============================================================
+
+Jika valid AWS credentials tersedia:
+
+jalankan minimal real discovery:
+
+STS
++
+Regions
++
+EC2 read
++
+S3 read
++
+IAM read
+
+HANYA jika IAM permission tersedia.
+
+Jika salah satu service AccessDenied:
+
+jangan klaim global success.
+
+Mark:
+
+PARTIAL
+
+dengan reason.
+
+============================================================
+34. LIVE DATA SAFETY
+============================================================
+
+Jika melakukan live discovery:
+
+JANGAN:
+
+download S3 objects
+read object contents
+modify buckets
+modify IAM
+modify EC2
+create resources
+delete resources
+
+Discovery read-only.
+
+============================================================
+35. TEST MATRIX — REQUIRED
+============================================================
+
+Run existing tests.
+
+Tambahkan hanya test yang menutup
+gap nyata.
+
+Minimum:
+
+[ ] AWS connection authorization
+[ ] invalid credential handling
+[ ] identity verification
+[ ] account mismatch
+[ ] revoke
+[ ] tenant isolation
+[ ] account isolation
+[ ] discovery idempotency
+[ ] concurrent discovery
+[ ] pagination
+[ ] region partial failure
+[ ] service partial failure
+[ ] retry classification
+[ ] timeout
+[ ] secret redaction
+[ ] audit
+[ ] read-only boundary
+
+============================================================
+36. NO DUPLICATE TEST INFRASTRUCTURE
+============================================================
+
+Gunakan test utilities existing.
+
+Jangan membuat test framework baru.
+
+Jangan membuat fake DB baru
+jika existing test DB sudah tersedia.
+
+============================================================
+37. BUILD VERIFICATION
+============================================================
+
+Run:
+
+npm install
+ONLY IF REQUIRED
+
+npx prisma generate
+
+npx prisma validate
+
+npx prisma migrate status
+
+npm test
+
+npm run build
+
+npm run typecheck
+jika tersedia
+
+npm run lint
+jika tersedia
+
+Jangan mengubah package version
+tanpa kebutuhan nyata.
+
+============================================================
+38. MIGRATION SAFETY
+============================================================
+
+Migration Prompt 04 sudah ada:
+
+20260814095030_p04_aws_discovery
+
+JANGAN membuat migration duplicate
+untuk schema yang sudah ada.
+
+Buat migration baru hanya jika audit
+menemukan schema gap nyata.
+
+Jangan reset database.
+
+============================================================
+39. DOCUMENTATION
+============================================================
+
+Update existing documentation.
+
+Jangan membuat duplicate docs.
+
+Document:
+
+AWS credential strategy
+AWS live verification
+account identity
+discovery lifecycle
+retry
+timeout
+partial discovery
+least privilege
+read-only guarantee
+tenant isolation
+known limitations
+
+============================================================
+40. CAPABILITY REGISTRY
+============================================================
+
+Capability status harus HONEST.
+
+Jika test/mock only:
+
+VERIFIED_CODE
+
+Jika actual AWS berhasil:
+
+VERIFIED_LIVE
+
+Contoh:
+
+AWS_CONNECTION_FOUNDATION = VERIFIED_CODE
+
+AWS_STS_IDENTITY_VERIFICATION = VERIFIED_CODE
+atau VERIFIED_LIVE
+
+AWS_EC2_DISCOVERY = VERIFIED_CODE
+atau VERIFIED_LIVE
+
+AWS_S3_DISCOVERY = VERIFIED_CODE
+atau VERIFIED_LIVE
+
+AWS_IAM_DISCOVERY = VERIFIED_CODE
+atau VERIFIED_LIVE
+
+JANGAN menggunakan VERIFIED_LIVE
+tanpa actual AWS evidence.
+
+============================================================
+41. PRODUCTION READINESS AUDIT
+============================================================
+
+Sebelum selesai, jawab:
+
+1. Apakah credential dapat bocor?
+2. Apakah tenant isolation benar?
+3. Apakah account isolation benar?
+4. Apakah revoke benar-benar memblokir?
+5. Apakah discovery idempotent?
+6. Apakah pagination benar?
+7. Apakah partial failure aman?
+8. Apakah retry bounded?
+9. Apakah timeout bounded?
+10. Apakah audit lengkap?
+11. Apakah read-only guarantee benar?
+12. Apakah migration aman?
+13. Apakah build bersih?
+14. Apakah test bersih?
+15. Apakah live AWS verified?
+
+Jika salah satu critical security gate gagal:
+
+STATUS = FAIL.
+
+============================================================
+42. CREDIT EFFICIENCY RULE
+============================================================
+
+SANGAT PENTING.
+
+Jangan melakukan pekerjaan berikut:
+
+- redesign frontend
+- dashboard
+- report
+- scanner
+- finding engine
+- AI
+- billing
+- notification
+- AWS remediation
+- compliance scoring
+- unrelated refactor
+
+Jangan membaca seluruh repository
+jika file yang relevan sudah diketahui.
+
+Inspect targeted files first.
+
+Implement only actual gaps.
+
+Jika item sudah COMPLETE:
+
+SKIP.
+
+Jangan rewrite.
+
+============================================================
+43. DEFINITION OF DONE
+============================================================
+
+MASTER PROMPT 04.A dianggap COMPLETE apabila:
+
+[ ] Existing Prompt 04 implementation audited
+[ ] No duplicate AWS implementation created
+[ ] Live AWS credential path production-safe
+[ ] STS verification path real
+[ ] account identity mismatch protected
+[ ] AWS errors safely classified
+[ ] timeout bounded
+[ ] retry bounded
+[ ] discovery lifecycle robust
+[ ] discovery idempotent
+[ ] concurrent discovery safe
+[ ] region partial failure handled
+[ ] service partial failure handled
+[ ] stale resource lifecycle verified
+[ ] revoke enforced
+[ ] authorization verified
+[ ] tenant isolation verified
+[ ] account isolation verified
+[ ] audit complete
+[ ] correlation ID preserved
+[ ] secrets redacted
+[ ] read-only guarantee verified
+[ ] DB constraints verified
+[ ] migration safe
+[ ] tests pass
+[ ] build pass
+[ ] docs updated
+[ ] capability registry honest
+[ ] live AWS verified IF credentials available
+
+============================================================
+44. EXTERNAL VERIFICATION RULE
+============================================================
+
+Jika environment tidak memiliki AWS credential:
+
+JANGAN menganggap task gagal.
+
+Implementasi harus tetap COMPLETE
+untuk code/system layer.
+
+Tetapi status live:
+
+EXTERNAL VERIFICATION PENDING.
+
+Berikan instruksi minimal untuk
+melakukan live verification nanti.
+
+Jangan meminta user melakukan langkah
+yang sebenarnya tidak diperlukan.
+
+============================================================
+45. FINAL OUTPUT
+============================================================
+
+Setelah selesai tampilkan:
+
+A. STATUS
+COMPLETE
+atau
+COMPLETE — LIVE AWS VERIFICATION PENDING
+atau
+FAIL
+
+B. WHAT WAS ALREADY COMPLETE
+Jangan rebuild.
+
+C. WHAT WAS ACTUALLY CHANGED
+
+D. LIVE AWS STATUS
+
+E. TEST RESULTS
+
+F. BUILD RESULT
+
+G. DATABASE/MIGRATION STATUS
+
+H. SECURITY RESULT
+
+I. TENANT ISOLATION RESULT
+
+J. READ-ONLY RESULT
+
+K. CAPABILITY REGISTRY
+
+L. REMAINING EXTERNAL VERIFICATION
+
+M. FILES CHANGED
+
+N. NEXT DEPENDENCY ONLY
+
+============================================================
+46. HARD STOP
+============================================================
+
+SETELAH MASTER PROMPT 04.A COMPLETE:
+
+STOP.
+
+JANGAN lanjut ke Prompt 05.
+
+JANGAN membuat security scanner.
+
+JANGAN membuat findings.
+
+JANGAN membuat report.
+
+JANGAN membuat scoring.
+
+Tunggu instruksi berikutnya.
+
+============================================================
+EXECUTE NOW
+============================================================
+
+CONTINUE FROM CURRENT JOBEN REPOSITORY.
+
+DO NOT REBUILD.
+
+DO NOT DUPLICATE PROMPT 04.
+
+AUDIT EXISTING IMPLEMENTATION.
+
+FIX ONLY REAL GAPS.
+
+VERIFY WITH TESTS.
+
+VERIFY WITH BUILD.
+
+VERIFY LIVE AWS ONLY IF CREDENTIALS EXIST.
+
+BE HONEST ABOUT LIVE STATUS.
+
+KEEP ALL EXISTING WORK.
+
+KEEP NODE.JS 24.
+
+KEEP POSTGRESQL.
+
+KEEP PRISMA.
+
+KEEP TYPESCRIPT.
+
+KEEP EXISTING AUTH/RBAC/TENANT ARCHITECTURE.
+
+FULL POWER.
+REAL WORK.
+COMPLETED.
+RESPONSIVE.
+SECURE.
+CREDIT-EFFICIENT.
+
+EXECUTE MASTER PROMPT 04.A NOW.
