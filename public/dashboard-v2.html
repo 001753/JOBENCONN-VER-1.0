@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="JOBEN Enterprise security decision system">
+    <title>JOBEN Enterprise · Security posture</title>
+    <script>
+      (() => {
+        const mode = localStorage.getItem("joben-theme-mode") || "dark";
+        const resolved = mode === "system" ? (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark") : mode;
+        document.documentElement.dataset.theme = resolved;
+      })();
+    </script>
+    <link rel="stylesheet" href="/dashboard-v2.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+        <a class="brand" href="/dashboard" aria-label="JOBEN Enterprise home">
+          <span class="brand-mark" aria-hidden="true">J</span>
+          <span class="brand-copy"><strong>JOBEN</strong><small>ENTERPRISE</small></span>
+        </a>
+        <div class="tenant-card">
+          <span class="eyebrow">ACTIVE ORGANIZATION</span>
+          <strong id="organization-label">Awaiting session</strong>
+          <span id="role-label">No tenant selected</span>
+          <a href="#settings" class="tenant-link">View organization <span>↗</span></a>
+        </div>
+        <nav class="nav-groups">
+          <div class="nav-group">
+            <span class="nav-label">Overview</span>
+            <a class="nav-item active" href="#overview"><span aria-hidden="true">⌂</span>Dashboard</a>
+          </div>
+          <div class="nav-group">
+            <span class="nav-label">Security</span>
+            <a class="nav-item" href="#accounts"><span aria-hidden="true">◈</span>AWS Accounts</a>
+            <a class="nav-item" href="#scans"><span aria-hidden="true">◌</span>Scans</a>
+            <a class="nav-item" href="#controls"><span aria-hidden="true">◇</span>Controls</a>
+            <a class="nav-item" href="#findings"><span aria-hidden="true">!</span>Findings</a>
+          </div>
+          <div class="nav-group">
+            <span class="nav-label">Evidence</span>
+            <a class="nav-item" href="#evidence"><span aria-hidden="true">▤</span>Evidence Vault</a>
+          </div>
+          <div class="nav-group">
+            <span class="nav-label">Governance</span>
+            <a class="nav-item" href="#audit"><span aria-hidden="true">⌁</span>Audit logs</a>
+            <a class="nav-item" href="#members"><span aria-hidden="true">◎</span>Members</a>
+            <a class="nav-item" href="#settings"><span aria-hidden="true">⚙</span>Settings</a>
+          </div>
+        </nav>
+        <div class="sidebar-foot">
+          <span class="status-dot"></span>
+          <div><strong>All systems operational</strong><small>Read-only posture view</small></div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="icon-button mobile-menu" id="menu-button" aria-label="Open navigation" aria-expanded="false">☰</button>
+          <div class="search-shell">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input id="global-search" type="search" placeholder="Search accounts, scans, controls, findings, evidence…" aria-label="Global search">
+            <kbd>⌘ K</kbd>
+            <div id="search-results" class="search-results hidden" role="listbox" aria-label="Search results"></div>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button notification-button" id="notification-button" aria-label="Notifications"><span aria-hidden="true">♧</span><i class="notification-dot" aria-hidden="true"></i></button>
+            <button class="icon-button" id="theme-button" aria-label="Change color theme" title="Theme: dark">◐</button>
+            <div class="user-menu">
+              <span class="avatar" id="avatar" aria-hidden="true">?</span>
+              <span class="user-copy"><strong id="user-label">Admin User</strong><small>Organization owner</small></span>
+            </div>
+          </div>
+        </header>
+
+        <section class="content" id="overview">
+          <div class="page-header">
+            <div>
+              <span class="eyebrow accent">SECURITY DECISION SYSTEM</span>
+              <h1>Know what changed.<br><span>Know what matters.</span></h1>
+              <p class="lede">A precise view of your environment's posture, evidence, and next actions.</p>
+            </div>
+            <div class="header-actions">
+              <button class="button secondary" id="refresh-button"><span aria-hidden="true">↻</span> Refresh</button>
+              <button class="button primary" id="scan-button" disabled><span aria-hidden="true">⌁</span> Run scan</button>
+            </div>
+          </div>
+
+          <section id="notice" class="notice hidden" role="status" aria-live="polite"></section>
+          <section id="login-card" class="login-card" aria-labelledby="login-title">
+            <div>
+              <span class="eyebrow accent">DEVELOPMENT ADAPTER</span>
+              <h2 id="login-title">Open a tenant session</h2>
+              <p>Dashboard data is fetched from the protected backend. No demo values are used.</p>
+            </div>
+            <form id="login-form" class="login-form">
+              <label for="identity">Dev identity</label>
+              <div class="form-row">
+                <input id="identity" name="identity" value="dashboard-operator" autocomplete="username" required>
+                <button class="button primary" type="submit">Sign in</button>
+              </div>
+              <small>Unavailable when the server runs in production.</small>
+            </form>
+          </section>
+
+          <div id="dashboard-content" class="hidden">
+            <div class="data-context">
+              <span class="live-pulse"></span><strong>Live backend data</strong>
+              <span>Tenant-scoped · <span id="data-source">source unavailable</span></span>
+              <span class="context-separator">·</span><span id="last-refresh">Awaiting refresh</span>
+            </div>
+
+            <section class="intelligence-grid" aria-label="Security intelligence overview">
+              <article class="panel posture-panel">
+                <div class="panel-header">
+                  <div><span class="eyebrow">PRIMARY SIGNAL</span><h2>Security posture</h2></div>
+                  <span class="freshness" id="freshness">Freshness unavailable</span>
+                </div>
+                <div class="posture-main">
+                  <div class="posture-orb" id="posture-orb" aria-label="Security posture status">
+                    <div><strong id="posture-value">Awaiting scan</strong><span id="posture-score">Not calculated</span></div>
+                  </div>
+                  <div class="posture-summary">
+                    <span class="status-badge neutral" id="posture-badge">NOT EVALUATED</span>
+                    <h3 id="posture-detail">Your environment has not been evaluated yet.</h3>
+                    <p id="posture-explanation">Run a read-only scan after an AWS account is verified to establish the first evidence-backed posture.</p>
+                    <button class="text-link" id="analysis-link" type="button">View analysis <span>→</span></button>
+                  </div>
+                </div>
+                <div class="posture-footer">
+                  <div><span>Last successful scan</span><strong id="last-scan">Not available</strong></div>
+                  <div><span>Affected accounts</span><strong id="affected-accounts">Not available</strong></div>
+                  <div><span>Evaluation basis</span><strong id="evaluation-basis">Backend state</strong></div>
+                </div>
+              </article>
+
+              <article class="panel risk-panel">
+                <div class="panel-header"><div><span class="eyebrow">WHAT IS AT RISK</span><h2>Risk distribution</h2></div><span class="panel-meta" id="risk-total">No evaluation</span></div>
+                <div id="risk-distribution" class="risk-distribution"></div>
+              </article>
+              <article class="panel action-panel" id="action-required">
+                <div class="panel-header"><div><span class="eyebrow accent">WHAT SHOULD I DO</span><h2>Action required</h2></div><span class="panel-meta">Prioritized</span></div>
+                <div id="actions-list" class="action-list"></div>
+              </article>
+            </section>
+
+            <section class="metric-strip" aria-label="Supporting metrics">
+              <article class="metric-item"><span class="metric-icon danger">!</span><div><span>Open findings</span><strong id="finding-count">Not available</strong><small id="critical-count">Critical findings unavailable</small></div><a href="#findings" aria-label="View findings">→</a></article>
+              <article class="metric-item"><span class="metric-icon info">◈</span><div><span>Monitored accounts</span><strong id="account-count">Not available</strong><small id="account-context">Awaiting account data</small></div><a href="#accounts" aria-label="View accounts">→</a></article>
+              <article class="metric-item"><span class="metric-icon success">◇</span><div><span>Controls evaluated</span><strong id="control-count">Not available</strong><small id="control-context">Awaiting control data</small></div><a href="#controls" aria-label="View controls">→</a></article>
+              <article class="metric-item"><span class="metric-icon neutral">▤</span><div><span>Evidence status</span><strong id="evidence-count">Not available</strong><small id="evidence-context">Awaiting evidence data</small></div><a href="#evidence" aria-label="View evidence">→</a></article>
+            </section>
+
+            <section class="section-grid">
+              <article class="panel" id="scans">
+                <div class="panel-header"><div><span class="eyebrow">WHAT HAPPENED</span><h2>Scan activity</h2></div><a class="panel-link" href="#scans">View all scans →</a></div>
+                <div id="scan-detail" class="scan-activity"></div>
+              </article>
+              <article class="panel" id="accounts">
+                <div class="panel-header"><div><span class="eyebrow">SCOPE</span><h2>AWS accounts</h2></div><span class="panel-meta" id="account-meta">No data</span></div>
+                <div id="accounts-list" class="account-list"></div>
+              </article>
+              <article class="panel changed-panel">
+                <div class="panel-header"><div><span class="eyebrow">DELTA</span><h2>What changed</h2></div><span class="panel-meta">Since last scan</span></div>
+                <div id="changes-list" class="change-list"></div>
+              </article>
+            </section>
+
+            <section class="section-grid lower-grid">
+              <article class="panel" id="controls">
+                <div class="panel-header"><div><span class="eyebrow">WHY</span><h2>Control evaluation</h2></div><span class="panel-meta" id="control-meta">No data</span></div>
+                <div id="controls-list" class="control-list"></div>
+              </article>
+              <article class="panel" id="findings">
+                <div class="panel-header"><div><span class="eyebrow">PRIORITY</span><h2>Findings preview</h2></div><a class="panel-link" href="#findings">View all findings →</a></div>
+                <div id="findings-list" class="finding-list"></div>
+              </article>
+              <article class="panel" id="evidence">
+                <div class="panel-header"><div><span class="eyebrow">PROOF</span><h2>Evidence vault</h2></div><span class="panel-meta">Integrity</span></div>
+                <div id="evidence-detail" class="evidence-list"></div>
+              </article>
+            </section>
+
+            <section id="detail-panel" class="panel detail-panel hidden" aria-live="polite" aria-labelledby="detail-title">
+              <div class="panel-header"><div><span class="eyebrow">DRILL-DOWN</span><h2 id="detail-title">Selected record</h2></div><button class="icon-button" id="close-detail" type="button" aria-label="Close detail">×</button></div>
+              <div id="detail-content" class="detail-content"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+    <script src="/dashboard-v2.js" defer></script>
+  </body>
+</html>

@@ -110,11 +110,11 @@ async function route(
 
   if (path === "/" || path === "/dashboard") {
     if (method !== "GET") throw new AppError("VALIDATION_ERROR", "Dashboard is read-only.");
-    const html = await readFile(resolve(process.cwd(), "public/dashboard.html"), "utf8");
+    const html = await readFile(resolve(process.cwd(), "public/dashboard-v2.html"), "utf8");
     sendText(response, 200, html, "text/html");
     return;
   }
-  if (path === "/dashboard.css" || path === "/dashboard.js") {
+  if (path === "/dashboard.css" || path === "/dashboard.js" || path === "/dashboard-v2.css" || path === "/dashboard-v2.js") {
     if (method !== "GET") throw new AppError("VALIDATION_ERROR", "Dashboard assets are read-only.");
     const asset = await readFile(resolve(process.cwd(), "public", path.slice(1)), "utf8");
     sendText(response, 200, asset, path.endsWith(".css") ? "text/css" : "application/javascript");

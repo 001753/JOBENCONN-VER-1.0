@@ -1,0 +1,1187 @@
+MASTER ADDENDUM 2 — JOBEN ENTERPRISE
+DASHBOARD UX + VISUAL DESIGN SYSTEM + THEME FOUNDATION
+PRECISION BUILD / REAL WORK / COMPLETED / PRODUCTION-READY
+
+IMPORTANT EXECUTION RULE:
+DO NOT REBUILD JOBEN FROM ZERO.
+
+The existing JOBEN Enterprise backend, PostgreSQL/Prisma foundation, authentication/RBAC, AWS provider/discovery, scan orchestration, security analysis, and Evidence Vault are already implemented through the previous phases.
+
+This task is a UI/UX and dashboard foundation addendum.
+
+Reuse the existing architecture and APIs.
+Do not duplicate backend logic.
+Do not create fake backend capabilities.
+Do not fabricate security scores, findings, evidence, scans, AWS resources, or compliance data.
+
+The objective is to transform the current dashboard from a generic MVP dashboard into a premium, enterprise-grade security intelligence interface that can scale visually and structurally through the remaining JOBEN roadmap up to Phase 16.
+
+==================================================
+1. PRIMARY OBJECTIVE
+==================================================
+
+Rebuild/refine the JOBEN dashboard UI and design system so that it feels like a serious modern security/intelligence product.
+
+The visual quality must be inspired by the supplied reference image:
+
+- premium dark interface
+- extremely clean typography
+- high information density without visual clutter
+- thin borders
+- subtle cyan/teal accent
+- restrained semantic colors
+- modular panels
+- compact data visualization
+- strong hierarchy
+- technical/editorial aesthetic
+- sophisticated dark background
+- subtle glow only where meaningful
+- no generic SaaS template appearance
+
+IMPORTANT:
+
+Do NOT copy the reference image literally.
+
+Use its VISUAL LANGUAGE only.
+
+JOBEN must retain its own identity.
+
+The final interface should look like a product that could plausibly compete with serious enterprise security platforms 5–10 years from now.
+
+==================================================
+2. DESIGN PHILOSOPHY
+==================================================
+
+JOBEN is not a generic analytics dashboard.
+
+JOBEN is a SECURITY DECISION SYSTEM.
+
+The UI must communicate this hierarchy:
+
+WHY
+→ WHAT HAPPENED
+→ WHAT IS AT RISK
+→ WHAT IS THE EVIDENCE
+→ WHAT SHOULD I DO
+→ VERIFY
+
+Every important dashboard object should eventually support drill-down.
+
+Example:
+
+Security posture
+→ finding
+→ control
+→ affected AWS resource
+→ observed fact
+→ evidence
+→ timestamp
+→ provenance
+→ remediation
+
+Never design cards that are visually attractive but disconnected from the underlying evidence model.
+
+==================================================
+3. VISUAL DIRECTION
+==================================================
+
+Use the supplied reference as visual inspiration.
+
+Desired characteristics:
+
+DARK MODE:
+- near-black / charcoal background
+- slightly lighter surface panels
+- thin low-contrast borders
+- muted gray secondary text
+- high-contrast primary text
+- cyan/teal as primary product accent
+- restrained green for positive state
+- amber for warning
+- red only for genuine security risk
+- avoid neon overload
+- avoid excessive gradients
+- avoid excessive shadows
+- avoid glassmorphism everywhere
+
+LIGHT MODE:
+- warm/off-white or very light neutral background
+- white/light panels
+- dark charcoal text
+- muted secondary typography
+- same cyan/teal product accent
+- subtle borders
+- no pure-white-on-white ambiguity
+- no low-contrast gray text
+- preserve the same hierarchy as dark mode
+
+Dark and light modes must feel like THE SAME PRODUCT.
+
+Do not design one mode as an afterthought.
+
+==================================================
+4. TYPOGRAPHY
+==================================================
+
+Typography is critical.
+
+Use ONE primary modern UI font family consistently throughout the product.
+
+Prefer a highly legible modern sans-serif such as:
+
+Inter
+
+or another existing project-approved equivalent if already installed.
+
+Do NOT randomly mix many font families.
+
+Use a disciplined typography scale:
+
+- Display / hero
+- H1
+- H2
+- H3
+- body
+- body-small
+- metadata
+- labels
+- numerical metrics
+- code/technical values
+
+Security metrics may use stronger numerical typography.
+
+Technical identifiers may use a monospace font only where appropriate:
+
+- AWS account ID
+- resource ARN
+- evidence hash
+- event ID
+- scan ID
+- timestamps where useful
+
+Never use monospace for normal prose.
+
+Typography must remain stable across:
+- desktop
+- tablet
+- mobile
+
+No text clipping.
+No accidental overflow.
+No unstable font loading layout shifts.
+
+==================================================
+5. DESIGN TOKENS
+==================================================
+
+Create or consolidate a centralized design-token layer.
+
+Do not scatter arbitrary colors throughout components.
+
+Define tokens for:
+
+BACKGROUND
+SURFACE
+SURFACE_ELEVATED
+SURFACE_HOVER
+BORDER
+BORDER_STRONG
+TEXT_PRIMARY
+TEXT_SECONDARY
+TEXT_MUTED
+ACCENT
+SUCCESS
+WARNING
+DANGER
+INFO
+
+Also define:
+
+spacing
+radius
+font sizes
+font weights
+line heights
+shadows
+transitions
+focus states
+
+The entire dashboard must consume these tokens.
+
+This is mandatory because future phases must be able to evolve the visual system without rewriting every component.
+
+==================================================
+6. DASHBOARD INFORMATION ARCHITECTURE
+==================================================
+
+Replace the current generic dashboard composition with a security-intelligence-oriented layout.
+
+Recommended structure:
+
+GLOBAL HEADER
+
+LEFT:
+JOBEN logo / wordmark
+
+CENTER:
+Universal search
+
+Search should eventually support:
+- accounts
+- scans
+- controls
+- findings
+- evidence
+- resources
+
+RIGHT:
+- notifications
+- theme toggle
+- organization/context
+- user menu
+
+Keep the header compact.
+
+==================================================
+7. SIDEBAR
+==================================================
+
+Create a refined enterprise sidebar.
+
+Structure:
+
+OVERVIEW
+Dashboard
+
+SECURITY
+Accounts
+Scans
+Controls
+Findings
+
+EVIDENCE
+Evidence Vault
+
+GOVERNANCE
+Audit
+Members
+Settings
+
+Future-capable sections may be visually prepared but MUST NOT claim functionality that does not yet exist.
+
+Sidebar requirements:
+
+- compact
+- elegant
+- strong active state
+- subtle cyan/teal indicator
+- clear section labels
+- icon + label
+- collapsible on desktop
+- drawer on mobile
+- keyboard accessible
+- state preserved where appropriate
+
+Do not make the sidebar visually dominant.
+
+==================================================
+8. DASHBOARD HERO
+==================================================
+
+Do NOT use:
+
+"Good morning."
+
+as the primary hero.
+
+Instead use a security-oriented heading.
+
+Example direction:
+
+SECURITY POSTURE
+
+"Know what changed.
+Know what matters."
+
+or a similarly concise JOBEN-native statement.
+
+The hero must contain:
+
+- organization context
+- current posture state
+- data freshness
+- last successful scan
+- primary action: Run scan
+- secondary action: Refresh
+
+Do not invent values.
+
+If backend data is unavailable:
+
+show an honest state such as:
+
+"Awaiting scan"
+
+"Not yet calculated"
+
+"Data unavailable"
+
+Never show fake metrics.
+
+==================================================
+9. PRIMARY SECURITY POSTURE PANEL
+==================================================
+
+Create one visually dominant panel.
+
+It should eventually support:
+
+SECURITY POSTURE
+
+large posture indicator
+
+risk distribution
+
+trend
+
+last scan
+
+freshness
+
+affected accounts/resources
+
+The visual hierarchy should feel closer to a command center than a collection of cards.
+
+Possible composition:
+
+------------------------------------------------
+SECURITY POSTURE
+
+82
+Security posture
+
+Risk trend ───────────────╮
+                         ╰──────
+
+Critical   03
+High       12
+Medium     31
+Low        47
+
+Last scan
+14 Aug 2026 · 13:42 UTC
+
+[View analysis]
+------------------------------------------------
+
+IMPORTANT:
+
+Only display actual values when supplied by backend capabilities.
+
+If unavailable, render the correct empty/awaiting state without destroying the visual hierarchy.
+
+==================================================
+10. METRIC SYSTEM
+==================================================
+
+Avoid four identical KPI cards.
+
+Metrics should have different visual importance.
+
+Prioritize:
+
+1. Security posture
+2. Critical/high findings
+3. Connected accounts
+4. Scan freshness
+5. Controls evaluated
+6. Evidence freshness
+
+Use compact supporting metrics rather than turning everything into giant cards.
+
+Each metric should answer a question.
+
+BAD:
+
+"Connected Accounts: 0"
+
+BETTER:
+
+"3 accounts monitored"
+
+with contextual metadata:
+
+"2 production · 1 staging"
+
+when data actually exists.
+
+==================================================
+11. WHAT CHANGED
+==================================================
+
+Create a dedicated section:
+
+WHAT CHANGED
+
+Show meaningful changes between scans.
+
+Examples:
+
++3 new findings
+-5 resolved findings
++1 AWS account
+2 controls changed
+Evidence refreshed
+
+Each item should be clickable/drillable when backend support exists.
+
+If no comparison data exists:
+
+"No previous scan to compare."
+
+Do NOT fabricate change history.
+
+==================================================
+12. ACTION REQUIRED
+==================================================
+
+Create a high-priority operational panel:
+
+ACTION REQUIRED
+
+Show the most important things the user should do next.
+
+Examples:
+
+3 Critical findings require attention
+
+12 high-risk controls need review
+
+Evidence is stale
+
+AWS account connection requires verification
+
+Again:
+
+ONLY use real backend state.
+
+The dashboard should answer:
+
+"What should I do next?"
+
+not merely:
+
+"What numbers do I have?"
+
+==================================================
+13. RISK DISTRIBUTION
+==================================================
+
+Create a compact, elegant visualization for:
+
+Critical
+High
+Medium
+Low
+
+Do not use overly colorful pie charts.
+
+Prefer:
+- horizontal distribution
+- compact bars
+- segmented risk rail
+- restrained area chart
+- small trend visualization
+
+Colors must be semantic and restrained.
+
+Critical = danger
+High = warning/danger family
+Medium = warning
+Low = neutral/success depending on semantics
+
+Do not use color as the only information channel.
+
+==================================================
+14. SCAN ACTIVITY
+==================================================
+
+Add a compact scan activity module.
+
+Show:
+
+Scan
+Status
+Started
+Duration
+Accounts
+Controls
+Findings
+Evidence
+
+Possible visual:
+
+SCAN ACTIVITY
+
+Running
+AWS Production
+████████████░░░░ 78%
+
+or:
+
+Last scan
+Completed
+14 Aug · 13:42
+127 resources
+18 controls
+3 findings
+
+Use actual backend information only.
+
+The component must gracefully support:
+
+QUEUED
+RUNNING
+SUCCEEDED
+FAILED
+CANCELLED
+DEAD_LETTER
+
+==================================================
+15. AWS ACCOUNT OVERVIEW
+==================================================
+
+Create an enterprise account module.
+
+Example:
+
+AWS ACCOUNTS
+
+Production     ● Healthy
+Staging        ● Healthy
+Development    ● Attention
+
+Show:
+- account alias
+- account ID when appropriate
+- region count
+- resource count
+- last scan
+- posture state
+
+Never expose secrets.
+
+Account identifiers must be handled according to existing security/redaction rules.
+
+==================================================
+16. FINDINGS PREVIEW
+==================================================
+
+Create a compact findings table/list.
+
+Columns or information:
+
+Severity
+Finding
+Control
+Resource
+Account
+Freshness
+Status
+
+Use excellent visual hierarchy.
+
+Critical findings must be immediately recognizable.
+
+Provide:
+
+View all findings →
+
+Do not duplicate the complete findings application here.
+
+This is a dashboard preview.
+
+==================================================
+17. EVIDENCE PREVIEW
+==================================================
+
+Create a compact Evidence Vault preview.
+
+Show:
+
+latest evidence
+source
+control
+timestamp
+integrity state
+
+Example:
+
+Evidence verified
+AWS / EC2
+Control: ...
+Captured: ...
+Hash: verified
+
+Use the existing Evidence model and provenance.
+
+Never fabricate evidence.
+
+==================================================
+18. WHY → WHAT → DO
+==================================================
+
+This is a core JOBEN UX pattern.
+
+Where appropriate, every major dashboard state should expose:
+
+WHY
+Why is this status occurring?
+
+WHAT
+What exactly happened?
+
+DO
+What action can the user take?
+
+Example:
+
+POSTURE: NEEDS ATTENTION
+
+WHY
+3 high-risk controls failed.
+
+WHAT
+Publicly exposed security group detected.
+
+DO
+Review finding →
+
+This pattern should become a reusable UI primitive.
+
+==================================================
+19. DRILL-DOWN
+==================================================
+
+Dashboard components must be designed for drill-down.
+
+Clicking:
+
+Security posture
+→ Controls/findings
+
+Finding
+→ Finding detail
+
+Resource
+→ Resource detail
+
+Evidence
+→ Evidence Vault
+
+Scan
+→ Scan detail
+
+Account
+→ Account detail
+
+Do not create dead-end decorative cards.
+
+==================================================
+20. RESPONSIVE DESIGN
+==================================================
+
+The dashboard MUST be responsive.
+
+DESKTOP:
+- persistent sidebar
+- multi-column intelligence layout
+
+TABLET:
+- compact sidebar
+- responsive grid
+
+MOBILE:
+- drawer navigation
+- stacked panels
+- horizontal scroll only for data tables where unavoidable
+- primary actions remain accessible
+- no tiny unreadable charts
+- no clipped text
+
+The mobile version must not simply be a shrunken desktop.
+
+Recompose the information hierarchy.
+
+==================================================
+21. MICRO-INTERACTIONS
+==================================================
+
+Use subtle motion only.
+
+Examples:
+
+- hover states
+- panel transitions
+- scan progress
+- loading skeletons
+- status transitions
+- command/search opening
+- drawer transitions
+
+Motion should feel like an intelligent technical product.
+
+Avoid:
+- bouncing cards
+- excessive animations
+- distracting gradients
+- continuous background animation
+
+Respect prefers-reduced-motion.
+
+==================================================
+22. BACKGROUND VISUAL LANGUAGE
+==================================================
+
+The supplied reference uses a technical dark environment.
+
+JOBEN may use:
+
+- extremely subtle grid
+- radial glow
+- technical noise
+- faint data lines
+- minimal particle/network hints
+
+BUT:
+
+Background graphics must remain BELOW the readability threshold.
+
+Never place bright graphics behind important text.
+
+Text must always win against background.
+
+Do not use animated particle systems that consume unnecessary resources.
+
+Prefer CSS/static lightweight effects.
+
+==================================================
+23. LIGHT/DARK THEME QUALITY GATE
+==================================================
+
+Both themes must pass the following:
+
+- WCAG-conscious contrast
+- readable secondary text
+- visible borders
+- visible focus states
+- no washed-out disabled states
+- no accidental white blocks in dark mode
+- no black blocks in light mode
+- consistent semantic colors
+- charts remain understandable
+- icons remain visible
+- hover states remain visible
+
+Test every major dashboard component in BOTH modes.
+
+==================================================
+24. COMPONENT ARCHITECTURE
+==================================================
+
+Create reusable components where appropriate:
+
+AppShell
+TopBar
+Sidebar
+SearchCommand
+SecurityPosture
+RiskDistribution
+Metric
+TrendChart
+WhatChanged
+ActionRequired
+ScanActivity
+AccountOverview
+FindingsPreview
+EvidencePreview
+EmptyState
+LoadingState
+ErrorState
+StatusBadge
+SeverityBadge
+FreshnessIndicator
+DrilldownLink
+WhyWhatDo
+
+Do not create dozens of unnecessary abstractions.
+
+Use a sensible component boundary.
+
+==================================================
+25. DATA CONTRACT RULE
+==================================================
+
+The UI must consume existing backend APIs.
+
+Do not put security business logic into UI components.
+
+Do not calculate authoritative security status in the frontend if the backend is responsible for it.
+
+Frontend may format:
+
+dates
+durations
+numbers
+labels
+display state
+
+Backend remains the source of truth.
+
+==================================================
+26. EMPTY / LOADING / ERROR STATES
+==================================================
+
+These are first-class product states.
+
+Implement polished states for:
+
+No AWS account
+No scan
+Scan running
+No findings
+No controls evaluated
+No evidence
+Data unavailable
+API error
+Permission denied
+Stale data
+
+Never leave blank white/black areas.
+
+Never show "0" without context.
+
+Example:
+
+NO SCAN
+
+"Your environment has not been evaluated yet."
+
+[Run first scan]
+
+==================================================
+27. ACCESSIBILITY
+==================================================
+
+Implement:
+
+- semantic HTML
+- keyboard navigation
+- visible focus
+- aria labels where necessary
+- accessible buttons
+- accessible dialogs
+- adequate contrast
+- reduced motion support
+- no color-only meaning
+
+==================================================
+28. PERFORMANCE
+==================================================
+
+Dashboard must remain lightweight.
+
+Avoid unnecessary:
+
+- dependencies
+- chart libraries
+- animation frameworks
+- polling loops
+- duplicate API requests
+- huge images
+
+Use existing dependencies whenever possible.
+
+Prefer CSS and existing project infrastructure.
+
+Lazy-load heavy routes/components where appropriate.
+
+==================================================
+29. FUTURE-PROOFING THROUGH PHASE 16
+==================================================
+
+Design the dashboard architecture so future phases can add:
+
+M-09:
+Decision & Control System
+
+M-10:
+Remediation & Rescan
+
+M-12:
+Reports & Notifications
+
+M-13:
+Second Provider
+
+M-14:
+Commercial + AI
+
+M-15:
+Trust/Auditor/Governance
+
+M-16:
+Hackathon Hardening
+
+WITHOUT redesigning the entire application shell.
+
+Reserve architectural space for:
+
+Providers
+Controls
+Remediation
+Reports
+Notifications
+AI insights
+Audit
+Governance
+
+BUT DO NOT implement unfinished functionality merely to fill visual space.
+
+Future capability must be extensible, not fake.
+
+==================================================
+30. SEARCH / COMMAND CENTER
+==================================================
+
+Preserve the universal search concept.
+
+The search UI should be visually integrated into the global header.
+
+Future search categories:
+
+Accounts
+Scans
+Controls
+Findings
+Evidence
+Resources
+Audit events
+
+Use keyboard shortcut:
+
+Cmd/Ctrl + K
+
+where compatible.
+
+Do not implement backend search functionality unless already available.
+
+==================================================
+31. THEME SWITCHER
+==================================================
+
+Provide a polished theme control:
+
+Dark
+Light
+System
+
+Persist preference locally.
+
+Do not reload the entire application unnecessarily.
+
+Avoid flash of incorrect theme during initial load if practical within the existing architecture.
+
+==================================================
+32. BRAND IDENTITY
+==================================================
+
+JOBEN must not look like a generic Tailwind dashboard.
+
+Create a recognizable visual identity:
+
+JOBEN
+
+Enterprise Security Intelligence
+
+Visual signature:
+
+- charcoal
+- off-white
+- cyan/teal accent
+- restrained risk colors
+- technical typography
+- precision borders
+- intelligent information density
+
+The product should feel:
+
+calm
+precise
+technical
+trustworthy
+premium
+
+NOT:
+
+loud
+gamified
+over-animated
+generic
+AI-slop
+
+==================================================
+33. MOBILE
+==================================================
+
+Verify at minimum:
+
+320px
+375px
+390px
+768px
+1024px
+1280px
+1440px+
+
+No horizontal page overflow.
+
+No broken sidebar.
+
+No clipped buttons.
+
+No unreadable metric.
+
+No overlapping cards.
+
+==================================================
+34. IMPLEMENTATION BOUNDARY
+==================================================
+
+IMPORTANT CREDIT-SAVING RULE:
+
+Do not rebuild modules that already work.
+
+Do not modify backend business logic unless strictly required by the existing frontend contract.
+
+Do not install a new UI framework if an existing one is already present and sufficient.
+
+Do not replace the entire frontend stack.
+
+Reuse:
+- existing components
+- existing routing
+- existing API client
+- existing authentication
+- existing RBAC
+- existing data contracts
+
+Modify only what is required to achieve the design objective.
+
+==================================================
+35. REAL-WORK REQUIREMENT
+==================================================
+
+This is NOT a design mockup task.
+
+Actually implement the UI.
+
+Do not merely describe what should be done.
+
+Do not leave TODO placeholders for core dashboard UI.
+
+Do not claim completion unless the implementation exists in the repository.
+
+==================================================
+36. VERIFICATION
+==================================================
+
+After implementation:
+
+1. Typecheck
+2. Build
+3. Run relevant tests
+4. Start application
+5. Verify dashboard route
+6. Verify authenticated state
+7. Verify API-driven data rendering
+8. Verify loading state
+9. Verify empty state
+10. Verify error state
+11. Verify dark mode
+12. Verify light mode
+13. Verify responsive layouts
+14. Verify no console errors
+15. Verify no horizontal overflow
+16. Verify navigation
+17. Verify theme persistence
+18. Verify Cmd/Ctrl+K search interaction if already supported
+19. Verify RBAC does not leak protected data
+20. Verify dashboard never invents unavailable backend metrics
+
+==================================================
+37. VISUAL ACCEPTANCE GATE
+==================================================
+
+The task is NOT COMPLETE if:
+
+- dashboard still looks like generic cards
+- typography is inconsistent
+- light mode looks unfinished
+- dark mode has poor contrast
+- background competes with text
+- mobile layout breaks
+- fake data is displayed
+- charts are decorative but meaningless
+- cards do not lead to useful drill-down
+- sidebar feels oversized
+- excessive shadows/gradients are used
+- UI is visually noisy
+- components are duplicated unnecessarily
+
+The task IS COMPLETE when:
+
+JOBEN looks like a coherent enterprise security intelligence product.
+
+The first screen should communicate within seconds:
+
+WHAT IS THE SECURITY POSTURE?
+WHAT CHANGED?
+WHAT IS IMPORTANT?
+WHAT SHOULD I DO?
+CAN I VERIFY THE REASON?
+
+==================================================
+38. FINAL RULE
+==================================================
+
+Do not stop after creating the visual shell.
+
+Make the dashboard functional with the backend capabilities that already exist.
+
+Where a capability does not yet exist, render a truthful state.
+
+Do not fake future M-09/M-10/M-12/M-13/M-14/M-15/M-16 data.
+
+Preserve the existing backend architecture.
+
+Complete the dashboard foundation to production-quality standards.
+
+Be precise.
+Be economical with changes.
+Reuse existing work.
+Do not rebuild from zero.
+Do not hallucinate functionality.
+
+FINAL OUTPUT MUST REPORT:
+
+- files changed
+- components created/modified
+- existing APIs reused
+- theme implementation
+- responsive verification
+- tests/build result
+- known limitations
+- capabilities intentionally deferred because they belong to later phases
+
+Only mark the task COMPLETED when the actual implementation and verification gates pass.
