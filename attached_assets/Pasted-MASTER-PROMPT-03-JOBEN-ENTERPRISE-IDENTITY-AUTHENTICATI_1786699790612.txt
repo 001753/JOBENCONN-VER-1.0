@@ -1,0 +1,1699 @@
+MASTER PROMPT 03 — JOBEN ENTERPRISE
+IDENTITY + AUTHENTICATION + TENANT + RBAC + ACCESS CONTROL
+
+MODE:
+PRECISION-FIRST
+CREDIT-EFFICIENT
+FULL-POWER
+REAL-WORK
+PRODUCTION-GRADE
+CORE SYSTEM COMPLETION
+
+RUNTIME:
+Node.js 24.x
+
+DATABASE:
+PostgreSQL
+
+ORM:
+Prisma
+
+LANGUAGE:
+TypeScript
+
+STATUS:
+CONTINUE FROM VERIFIED MASTER PROMPT 02
+
+============================================================
+0. MISSION
+============================================================
+
+Lanjutkan repository JOBEN yang SUDAH dibangun oleh:
+
+MASTER PROMPT 01
++
+MASTER PROMPT 02
+
+JANGAN membuat project baru.
+JANGAN rebuild.
+JANGAN mengganti architecture yang sudah lulus.
+JANGAN menghapus persistence foundation.
+JANGAN mengulang migration/schema yang sudah benar.
+
+MASTER PROMPT 03 bertugas menyelesaikan CORE IDENTITY
+dan ACCESS CONTROL JOBEN.
+
+TARGET:
+
+USER
+→ IDENTITY
+→ SESSION
+→ ORGANIZATION
+→ MEMBERSHIP
+→ ROLE
+→ PERMISSION
+→ AUTHORIZATION
+→ TENANT ISOLATION
+→ AUDIT
+
+harus menjadi satu sistem yang konsisten dan benar-benar
+dapat digunakan oleh application layer.
+
+============================================================
+1. SOURCE OF TRUTH
+============================================================
+
+Gunakan:
+
+- JOBEN PRD
+- JOBEN Build Roadmap
+- dependency DAG
+- hasil Master Prompt 01
+- hasil Master Prompt 02
+- existing architecture
+- existing environment contract
+- existing database schema
+- existing migration history
+- existing capability registry
+- existing documentation
+
+Jangan mengarang requirement baru jika tidak diperlukan.
+
+Jika terdapat konflik:
+
+PRD
+→ ROADMAP
+→ EXISTING VERIFIED ARCHITECTURE
+→ SAFEST IMPLEMENTATION
+
+ikuti urutan tersebut.
+
+============================================================
+2. TECHNOLOGY LOCK
+============================================================
+
+WAJIB:
+
+Node.js 24.x
+PostgreSQL
+Prisma
+TypeScript
+
+JANGAN downgrade Node.js.
+
+JANGAN mengganti PostgreSQL.
+
+JANGAN mengganti ORM tanpa blocker nyata.
+
+Jangan install dependency besar jika native/existing
+dependency sudah mampu menyelesaikan requirement.
+
+============================================================
+3. FIRST ACTION — INSPECT
+============================================================
+
+Sebelum coding:
+
+inspect hasil Master Prompt 02.
+
+Periksa:
+
+- schema.prisma
+- migrations
+- User
+- Organization
+- Membership
+- Invitation
+- AuditEvent
+- CapabilityRecord
+- IdempotencyRecord
+- scoped repositories
+- transaction helpers
+- environment validation
+- existing middleware
+- existing API layer
+- existing route structure
+- existing error handling
+- test framework
+- documentation
+- capability registry
+- package.json
+- git status
+
+Tujuan:
+
+IMPLEMENT ONLY WHAT IS MISSING.
+
+Jangan mengulang pekerjaan yang sudah verified.
+
+============================================================
+4. CORE OBJECTIVE
+============================================================
+
+Setelah Prompt 03 selesai, sistem harus mampu:
+
+1. mengenali identity user;
+2. membuat/memuat user;
+3. membuat personal/default organization bila required;
+4. membuat membership;
+5. menentukan active organization;
+6. memvalidasi session;
+7. mengetahui actor;
+8. mengetahui organization context;
+9. menentukan role;
+10. menentukan permission;
+11. menolak unauthorized action;
+12. menolak cross-tenant access;
+13. mencatat security-sensitive action;
+14. menangani invitation;
+15. menangani membership lifecycle;
+16. menjaga last-owner invariant;
+17. memisahkan system authority dan customer authority;
+18. mendukung future Clerk integration;
+19. memiliki test evidence untuk seluruh boundary.
+
+============================================================
+5. IDENTITY ARCHITECTURE
+============================================================
+
+Pisahkan:
+
+AUTHENTICATION
+dan
+AUTHORIZATION.
+
+Authentication menjawab:
+
+"Siapa user ini?"
+
+Authorization menjawab:
+
+"Apa yang boleh dilakukan user ini
+dalam organization tertentu?"
+
+Jangan mencampur keduanya.
+
+Identity harus mempunyai internal stable User ID.
+
+External identity provider ID
+adalah reference,
+BUKAN primary domain identity.
+
+============================================================
+6. AUTH PROVIDER BOUNDARY
+============================================================
+
+Buat abstraction:
+
+IdentityProvider
+
+atau equivalent sesuai existing architecture.
+
+Contract minimal harus mampu:
+
+- resolve external identity
+- provision/sync local user
+- identify verified identity
+- expose provider identity reference
+- handle provider errors
+
+Jangan hardcode application logic ke Clerk SDK
+di seluruh codebase.
+
+Jika Clerk package/configuration sudah ada:
+
+integrasikan secara terisolasi.
+
+Jika Clerk belum connected:
+
+buat provider boundary + configuration
+dan gunakan test/dev adapter yang jelas.
+
+JANGAN mengklaim Clerk production-live
+jika credential/connection belum diverifikasi.
+
+============================================================
+7. CLERK / EXTERNAL IDENTITY
+============================================================
+
+Jika PRD menetapkan Clerk sebagai identity provider:
+
+Clerk adalah authentication authority.
+
+JOBEN PostgreSQL tetap menyimpan
+application identity projection.
+
+Flow:
+
+External Identity
+→ verify
+→ local User
+→ local Organization/Membership
+→ application session/context
+→ authorization
+
+Jangan membuat password system sendiri
+jika Clerk menjadi authority.
+
+Jangan menyimpan password Clerk.
+
+Jangan menyimpan OAuth tokens secara plaintext.
+
+============================================================
+8. LOCAL USER PROVISIONING
+============================================================
+
+Saat authenticated identity belum ada
+di local DB:
+
+create/sync User.
+
+Operasi harus idempotent.
+
+Repeated login/sync:
+
+MUST NOT create duplicate users.
+
+Gunakan unique external identity reference.
+
+Jika identity berubah:
+
+jangan silently merge dua users.
+
+Fail safely dan audit.
+
+============================================================
+9. SESSION MODEL
+============================================================
+
+Implementasikan secure application session boundary.
+
+Session harus mampu menjawab:
+
+- userId
+- authenticated
+- session ID
+- createdAt
+- expiresAt
+- revokedAt
+- organization context jika architecture membutuhkan
+- authentication assurance level bila diperlukan
+
+JANGAN simpan secrets sensitif di client-accessible storage.
+
+Jika cookie digunakan:
+
+HttpOnly
+Secure production
+SameSite sesuai architecture
+short-lived/controlled expiry
+
+Jangan menaruh session secrets di localStorage.
+
+============================================================
+10. SESSION LIFECYCLE
+============================================================
+
+Implement:
+
+CREATE
+→ VALIDATE
+→ REFRESH/ROTATE bila diperlukan
+→ EXPIRE
+→ REVOKE
+
+Session harus dapat:
+
+- expire otomatis
+- revoke individual session
+- revoke all sessions untuk security event
+- reject revoked session
+
+Password reset/security event di masa depan
+harus dapat invalidate sessions.
+
+============================================================
+11. SESSION FIXATION
+============================================================
+
+Authentication boundary harus mencegah:
+
+old anonymous/session context
+→ authenticated privilege
+
+tanpa session regeneration/rotation
+yang sesuai.
+
+Jika login menyebabkan privilege change:
+
+rotate session identifier.
+
+============================================================
+12. CSRF
+============================================================
+
+Jika menggunakan cookie-authenticated mutations:
+
+implement CSRF protection
+atau architecture equivalent yang benar.
+
+Jangan mengandalkan:
+
+SameSite saja
+
+sebagai satu-satunya defense
+jika application architecture membutuhkan
+additional CSRF protection.
+
+GET harus tidak menyebabkan mutation.
+
+============================================================
+13. AUTHENTICATION STATES
+============================================================
+
+Support state yang jelas:
+
+UNAUTHENTICATED
+AUTHENTICATED
+SESSION_EXPIRED
+SESSION_REVOKED
+IDENTITY_UNVERIFIED bila relevan
+AUTHENTICATION_ERROR
+
+Jangan menggunakan boolean tunggal
+yang menyembunyikan state penting.
+
+============================================================
+14. ORGANIZATION CONTEXT
+============================================================
+
+Authentication ≠ Organization authorization.
+
+Setelah user authenticated:
+
+resolve organization context.
+
+Context harus berasal dari trusted server-side state.
+
+JANGAN percaya:
+
+organizationId dari hidden input
+organizationId dari frontend state
+organizationId dari arbitrary query parameter
+
+tanpa validation.
+
+============================================================
+15. ACTIVE ORGANIZATION
+============================================================
+
+User dapat memiliki membership pada lebih dari satu
+organization.
+
+Implementasikan active organization resolution.
+
+Flow:
+
+Authenticated User
+→ available memberships
+→ selected organization
+→ verify membership
+→ create OrganizationContext
+
+Jika organization tidak valid:
+
+DENY.
+
+Jika user bukan member:
+
+DENY.
+
+============================================================
+16. ORGANIZATION SWITCHING
+============================================================
+
+Implement server-side organization switching foundation.
+
+Requirements:
+
+- user authenticated
+- membership exists
+- membership active
+- organization active
+- new context established
+- old context not reused
+
+Switching organization:
+
+MUST NOT grant privileges.
+
+It only changes scope.
+
+============================================================
+17. TENANT ISOLATION
+============================================================
+
+CRITICAL.
+
+Every customer request must have:
+
+Actor
++
+OrganizationContext
++
+Permission
+
+before accessing tenant-owned resources.
+
+Pattern:
+
+Request
+→ Authentication
+→ Actor
+→ Organization membership
+→ OrganizationContext
+→ Permission
+→ Scoped repository
+→ Data
+
+NOT:
+
+Request
+→ organizationId
+→ DB
+
+============================================================
+18. CROSS-TENANT ATTACK TEST
+============================================================
+
+Create automated tests:
+
+USER A belongs to ORG A.
+
+USER B belongs to ORG B.
+
+Create resource/state for both.
+
+Attempt:
+
+User A → Org B resource
+
+Expected:
+
+403/404 according to information-disclosure policy.
+
+NEVER return B's data.
+
+Test:
+
+- direct ID access
+- list endpoint
+- search
+- update
+- delete
+- nested relation
+- invitation
+- membership
+- organization settings
+
+============================================================
+19. RBAC MODEL
+============================================================
+
+Implement role model based on PRD.
+
+Minimum expected conceptual roles:
+
+OWNER
+ADMIN
+MEMBER
+VIEWER
+
+If PRD has additional roles:
+
+USE PRD ROLES.
+
+Do not invent unrelated roles.
+
+Role must be scoped to Organization.
+
+Same user may be:
+
+OWNER in Org A
+MEMBER in Org B.
+
+Never store one global role
+as the source of truth.
+
+============================================================
+20. PERMISSION MODEL
+============================================================
+
+Do NOT scatter:
+
+if (user.role === "admin")
+
+throughout application.
+
+Create centralized authorization mechanism.
+
+Concept:
+
+Permission
++
+Resource
++
+Action
++
+OrganizationContext
+
+Examples:
+
+organization.read
+organization.update
+member.read
+member.invite
+member.update
+member.remove
+audit.read
+settings.update
+
+Use actual PRD permission vocabulary
+if defined.
+
+============================================================
+21. AUTHORIZATION API
+============================================================
+
+Provide a consistent server-side contract such as:
+
+authorize({
+  actor,
+  organization,
+  permission,
+  resource
+})
+
+or equivalent.
+
+Result:
+
+ALLOW
+or
+DENY
+
+Never silently downgrade unauthorized action.
+
+For every protected mutation:
+
+AUTHENTICATE
+→ AUTHORIZE
+→ MUTATE
+→ AUDIT
+
+============================================================
+22. OWNER PROTECTION
+============================================================
+
+Implement last-owner invariant.
+
+Organization MUST NOT reach:
+
+zero active owners.
+
+Therefore:
+
+Owner A cannot remove/demote Owner B
+if B is the last remaining owner.
+
+Tests:
+
+- remove last owner → DENY
+- demote last owner → DENY
+- deactivate last owner → DENY
+- transfer ownership → valid only when replacement owner exists
+
+============================================================
+23. OWNERSHIP TRANSFER
+============================================================
+
+Implement ownership transfer foundation.
+
+Requirements:
+
+- actor authorized
+- target is valid member
+- target becomes owner
+- previous owner role changes according to policy
+- transaction atomic
+- audit event written
+- concurrency protected
+- no zero-owner intermediate durable state
+
+Use PostgreSQL transaction.
+
+No partial transfer.
+
+============================================================
+24. MEMBERSHIP LIFECYCLE
+============================================================
+
+Support:
+
+ACTIVE
+SUSPENDED
+REMOVED
+
+or exact PRD lifecycle.
+
+Authorization must check membership state.
+
+Suspended/removed member:
+
+MUST NOT access customer data.
+
+Do not rely on frontend hiding UI.
+
+Server must deny.
+
+============================================================
+25. INVITATION FLOW
+============================================================
+
+Implement complete persistence/application workflow:
+
+CREATE INVITATION
+→ PENDING
+→ ACCEPT
+→ ACTIVE MEMBERSHIP
+
+Also:
+
+EXPIRE
+REVOKE
+REJECT DUPLICATE
+REPLAY PROTECTION
+
+Invitation acceptance must be:
+
+atomic
+idempotent
+tenant-scoped
+audited
+
+Repeated acceptance:
+
+MUST NOT create duplicate membership.
+
+============================================================
+26. INVITATION SECURITY
+============================================================
+
+Invitation token:
+
+never expose raw token in logs.
+
+Store safe hash/reference if architecture requires.
+
+Acceptance:
+
+validate hash/reference
+validate expiry
+validate status
+validate target identity
+validate organization
+validate requested role
+consume atomically
+
+If already accepted:
+
+do not create duplicate.
+
+============================================================
+27. ROLE CHANGE
+============================================================
+
+Implement role changes with:
+
+- authorization
+- target membership validation
+- last-owner protection
+- transaction
+- audit
+- optimistic concurrency
+
+User cannot elevate own role
+unless explicit authorized workflow permits it.
+
+No self-service privilege escalation.
+
+============================================================
+28. MEMBER REMOVAL
+============================================================
+
+Implement:
+
+remove/deactivate membership.
+
+Requirements:
+
+- authorization
+- cannot remove protected last owner
+- revoke active application access
+  according to session strategy
+- audit
+- transaction
+
+Removed member:
+
+MUST NOT retain effective access.
+
+============================================================
+29. SUPERADMIN / SYSTEM AUTHORITY
+============================================================
+
+Maintain strict separation:
+
+SYSTEM ADMIN
+≠
+ORGANIZATION OWNER
+
+A system-level operator does not automatically
+become member of every organization.
+
+Customer data access by system authority
+must be explicit and auditable.
+
+If PRD requires superadmin:
+
+implement system role separately.
+
+Do NOT add system admin
+into organization membership merely to bypass checks.
+
+============================================================
+30. SYSTEM CONTEXT
+============================================================
+
+Create explicit system authorization context.
+
+Example conceptual distinction:
+
+CustomerContext
+SystemContext
+
+CustomerContext:
+
+organization scoped.
+
+SystemContext:
+
+explicitly elevated.
+
+A repository operation requiring system scope
+must not accept ordinary organization context
+as equivalent.
+
+============================================================
+31. AUDIT INTEGRATION
+============================================================
+
+Integrate Prompt 02 AuditEvent.
+
+Audit at minimum:
+
+- login success/failure where appropriate
+- logout/revoke
+- organization creation
+- organization switch
+- invitation created
+- invitation accepted
+- invitation revoked
+- membership created
+- membership removed
+- role changed
+- ownership transfer
+- authorization denial for sensitive action
+- system-level access
+- security-sensitive changes
+
+Audit fields must include:
+
+actor
+organization
+action
+purpose
+target
+result
+reason
+correlation ID
+timestamp UTC
+
+Do not log secrets.
+
+============================================================
+32. AUTHORIZATION DENIAL
+============================================================
+
+Unauthorized request must:
+
+- fail deterministically
+- return safe error
+- not expose protected resource existence
+  when policy requires concealment
+- produce audit event when sensitive
+- include correlation ID
+
+Do not leak:
+
+SQL
+stack trace
+internal IDs unnecessarily
+security policy internals
+credentials
+
+============================================================
+33. CORRELATION ID
+============================================================
+
+Every authenticated request should have:
+
+request/correlation ID.
+
+Propagate it through:
+
+request
+→ auth
+→ authorization
+→ service
+→ repository
+→ audit
+
+Use it for debugging and audit linkage.
+
+============================================================
+34. RATE LIMIT FOUNDATION
+============================================================
+
+Implement reasonable rate-limit hooks
+for authentication-sensitive operations.
+
+At minimum architecture must support:
+
+login attempts
+session abuse
+invitation abuse
+password/recovery endpoint
+if applicable
+
+Do not introduce a huge distributed infrastructure
+unless required now.
+
+For local development:
+
+simple deterministic implementation is acceptable.
+
+Production adapter can be provided later.
+
+Do not falsely claim distributed rate limiting.
+
+============================================================
+35. ACCOUNT LOCKOUT / ABUSE
+============================================================
+
+If authentication provider controls login:
+
+do not duplicate password lockout logic.
+
+Instead:
+
+consume provider authentication result
+and implement application-level abuse protection
+where required.
+
+Avoid locking legitimate users incorrectly.
+
+============================================================
+36. AUTH ERROR MODEL
+============================================================
+
+Create consistent errors:
+
+UNAUTHENTICATED
+SESSION_EXPIRED
+SESSION_REVOKED
+FORBIDDEN
+ORG_NOT_FOUND
+NOT_A_MEMBER
+MEMBERSHIP_SUSPENDED
+ROLE_INSUFFICIENT
+INVITATION_EXPIRED
+INVITATION_REVOKED
+INVITATION_ALREADY_USED
+LAST_OWNER_PROTECTED
+CONCURRENCY_CONFLICT
+
+Use typed/domain-safe errors.
+
+Do not expose implementation details.
+
+============================================================
+37. API / MIDDLEWARE BOUNDARY
+============================================================
+
+Every protected API/route must use
+centralized authentication and authorization.
+
+Avoid route-by-route custom auth logic.
+
+Provide reusable middleware/guard/service.
+
+Example conceptual pipeline:
+
+withAuth()
+→ withOrganization()
+→ requirePermission()
+→ service()
+
+Adapt exact implementation
+to existing JOBEN framework.
+
+============================================================
+38. PUBLIC VS PROTECTED
+============================================================
+
+Explicitly classify routes:
+
+PUBLIC
+AUTHENTICATED
+ORGANIZATION-SCOPED
+SYSTEM-ADMIN
+
+No ambiguous default.
+
+Secure default:
+
+DENY.
+
+If a route is not explicitly public:
+
+require authentication.
+
+============================================================
+39. SESSION REVOCATION
+============================================================
+
+Implement:
+
+revokeSession(sessionId)
+
+revokeAllUserSessions(userId)
+
+Use cases:
+
+- logout
+- security incident
+- identity change
+- membership removal
+- account recovery
+- administrative security action
+
+Do not leave revoked sessions usable.
+
+============================================================
+40. ORGANIZATION DEACTIVATION
+============================================================
+
+If Organization has lifecycle status:
+
+ACTIVE
+SUSPENDED
+DEACTIVATED
+
+then authorization must enforce it.
+
+Suspended/deactivated organization:
+
+customer access denied.
+
+Do not delete data simply to deactivate.
+
+Deletion lifecycle belongs to later data lifecycle phase
+unless already required by PRD.
+
+============================================================
+41. SECURITY BOUNDARIES
+============================================================
+
+Never trust:
+
+- client role
+- client organization
+- client user ID
+- client permission
+- hidden form fields
+- URL alone
+
+Trusted:
+
+- verified identity
+- server session
+- server membership lookup
+- server authorization
+- database constraints
+- scoped repository
+
+============================================================
+42. DATABASE TRANSACTIONS
+============================================================
+
+Use transaction for:
+
+invitation acceptance
+membership creation + audit
+role change + audit
+ownership transfer + audit
+member removal + audit
+organization mutation + audit
+
+Transaction must guarantee atomicity.
+
+============================================================
+43. CONCURRENCY
+============================================================
+
+Use Prompt 02 optimistic concurrency foundation.
+
+Test concurrent:
+
+- invitation acceptance
+- ownership transfer
+- last-owner demotion
+- role change
+
+Expected:
+
+one valid mutation wins.
+
+Others receive controlled conflict.
+
+No duplicate membership.
+No zero-owner state.
+
+============================================================
+44. TEST MATRIX
+============================================================
+
+Create comprehensive tests.
+
+AUTHENTICATION:
+
+[ ] valid identity
+[ ] invalid identity
+[ ] expired session
+[ ] revoked session
+[ ] session rotation
+[ ] logout
+[ ] revoke all sessions
+
+IDENTITY:
+
+[ ] user provisioning
+[ ] duplicate external identity
+[ ] idempotent sync
+
+TENANT:
+
+[ ] valid membership
+[ ] missing membership
+[ ] suspended membership
+[ ] removed membership
+[ ] organization switching
+[ ] cross-tenant read
+[ ] cross-tenant write
+[ ] cross-tenant delete
+
+RBAC:
+
+[ ] owner permission
+[ ] admin permission
+[ ] member permission
+[ ] viewer permission
+[ ] denied permission
+[ ] privilege escalation attempt
+
+INVITATION:
+
+[ ] create
+[ ] accept
+[ ] expired
+[ ] revoked
+[ ] duplicate
+[ ] replay
+[ ] wrong identity
+[ ] concurrent accept
+
+OWNERSHIP:
+
+[ ] transfer
+[ ] last-owner protection
+[ ] concurrent transfer
+
+AUDIT:
+
+[ ] sensitive action audited
+[ ] denial audited
+[ ] correlation ID
+[ ] no secrets in audit
+
+SECURITY:
+
+[ ] CSRF boundary
+[ ] session fixation
+[ ] secret exposure
+[ ] safe errors
+
+============================================================
+45. PROPERTY / INVARIANT TESTS
+============================================================
+
+At minimum verify:
+
+INVARIANT 1:
+A user cannot access an organization
+without active membership.
+
+INVARIANT 2:
+Organization membership determines tenant scope.
+
+INVARIANT 3:
+A user cannot elevate own privileges.
+
+INVARIANT 4:
+Organization cannot have zero owners.
+
+INVARIANT 5:
+Invitation cannot be consumed twice.
+
+INVARIANT 6:
+Revoked session cannot authenticate.
+
+INVARIANT 7:
+Removed member cannot access tenant.
+
+INVARIANT 8:
+System admin ≠ organization member automatically.
+
+INVARIANT 9:
+Customer context cannot execute system-only operation.
+
+INVARIANT 10:
+Audit cannot be modified through normal application path.
+
+============================================================
+46. CLERK INTEGRATION GATE
+============================================================
+
+If actual Clerk credentials/environment are available:
+
+test real integration.
+
+Verify:
+
+External identity
+→ Clerk verification
+→ local user
+→ organization
+→ membership
+→ authorization.
+
+If not available:
+
+DO NOT FAKE production integration.
+
+Implement:
+
+provider adapter
++
+test adapter
++
+configuration contract.
+
+Mark capability:
+
+VERIFICATION_REQUIRED
+
+not LIVE_VERIFIED.
+
+============================================================
+47. ENVIRONMENT CONTRACT
+============================================================
+
+Required secrets/config must be validated.
+
+Never commit:
+
+CLERK_SECRET_KEY
+CLERK_WEBHOOK_SECRET
+SESSION_SECRET
+DATABASE_URL
+API keys
+encryption keys
+
+Production missing secret:
+
+FAIL FAST.
+
+Development can use explicitly marked
+test/dev configuration where safe.
+
+============================================================
+48. SECURITY LOGGING
+============================================================
+
+Never log:
+
+password
+session token
+Clerk secret
+OAuth token
+invitation raw token
+encryption key
+database URL
+
+Safe logs may contain:
+
+event type
+user internal ID
+organization internal ID
+correlation ID
+result
+timestamp
+
+subject to classification policy.
+
+============================================================
+49. CAPABILITY REGISTRY
+============================================================
+
+Update capability registry ONLY with verified status.
+
+Possible capabilities:
+
+IDENTITY_FOUNDATION
+SESSION_MANAGEMENT
+ORGANIZATION_CONTEXT
+TENANT_ISOLATION
+RBAC
+INVITATION_LIFECYCLE
+MEMBERSHIP_LIFECYCLE
+OWNERSHIP_TRANSFER
+AUDIT_AUTHORIZATION
+SYSTEM_ADMIN_BOUNDARY
+
+Do NOT mark:
+
+CLERK_LIVE
+MFA_LIVE
+AWS_LIVE
+SCAN_LIVE
+EVIDENCE_LIVE
+
+unless those capabilities are actually implemented
+and verified in this prompt.
+
+============================================================
+50. DOCUMENTATION
+============================================================
+
+Update existing docs rather than creating duplicates.
+
+Required documentation topics:
+
+- identity architecture
+- authentication flow
+- session lifecycle
+- organization context
+- tenant isolation
+- role matrix
+- permission matrix
+- invitation lifecycle
+- membership lifecycle
+- ownership transfer
+- system/admin boundary
+- audit events
+- security errors
+- Clerk integration status
+- known limitations
+- deferred work
+
+Suggested:
+
+DOC/IDENTITY-AUTH.md
+DOC/TENANT-RBAC.md
+DOC/SECURITY-BOUNDARIES.md
+
+Follow existing naming if already established.
+
+============================================================
+51. ROLE/PERMISSION MATRIX
+============================================================
+
+Create an explicit matrix.
+
+Example structure:
+
+Capability                    OWNER ADMIN MEMBER VIEWER
+
+organization.read             YES   YES   YES    YES
+organization.update           YES   YES   NO     NO
+member.read                   YES   YES   YES    YES
+member.invite                 YES   YES   NO     NO
+member.update                 YES   YES   NO     NO
+member.remove                 YES   YES   NO     NO
+role.change                   YES   YES   NO     NO
+ownership.transfer            YES   NO    NO     NO
+audit.read                    YES   YES   NO     NO
+
+IMPORTANT:
+
+Do not blindly use this example
+if PRD specifies another matrix.
+
+Use PRD as authority.
+
+============================================================
+52. NO UI SCOPE
+============================================================
+
+Do NOT spend credits redesigning frontend.
+
+Prompt 03 is backend/core identity.
+
+Only create minimal API/route artifacts
+required to verify the system.
+
+No dashboard.
+No landing page.
+No marketing UI.
+No design system work.
+
+============================================================
+53. NO FUTURE MODULES
+============================================================
+
+DO NOT implement:
+
+AWS Organizations
+AWS Config
+Security Hub
+IAM Access Analyzer
+GuardDuty
+CloudTrail
+S3 evidence
+scan engine
+evidence engine
+control evaluation
+remediation
+report engine
+notification
+billing
+AI
+auditor portal
+
+Those belong to subsequent prompts.
+
+============================================================
+54. CREDIT EFFICIENCY
+============================================================
+
+CRITICAL:
+
+DO NOT rebuild.
+
+DO NOT reinstall existing dependencies.
+
+DO NOT refactor unrelated code.
+
+DO NOT redesign architecture.
+
+DO NOT create speculative abstractions.
+
+DO NOT implement future modules.
+
+Use existing:
+
+- Prisma
+- repositories
+- transaction utilities
+- error system
+- logging
+- testing framework
+
+where possible.
+
+Inspect once.
+Implement targeted changes.
+Run focused tests.
+Run full test suite once after stable.
+Run build once.
+Verify runtime.
+STOP.
+
+============================================================
+55. DEFINITION OF DONE
+============================================================
+
+Prompt 03 is COMPLETE only when:
+
+[ ] Node.js 24 verified
+[ ] PostgreSQL verified
+[ ] Prisma schema remains valid
+[ ] migrations remain valid
+[ ] identity provider boundary exists
+[ ] local user provisioning works
+[ ] duplicate user provisioning prevented
+[ ] session lifecycle works
+[ ] expired session rejected
+[ ] revoked session rejected
+[ ] session security boundary verified
+[ ] authenticated actor context works
+[ ] organization context works
+[ ] membership validation works
+[ ] organization switching validated
+[ ] tenant isolation enforced server-side
+[ ] cross-tenant tests pass
+[ ] RBAC implemented
+[ ] permission checks centralized
+[ ] privilege escalation tests pass
+[ ] invitation lifecycle works
+[ ] invitation replay prevented
+[ ] membership lifecycle works
+[ ] last-owner invariant works
+[ ] ownership transfer atomic
+[ ] concurrency protection verified
+[ ] system/customer boundary verified
+[ ] audit integrated
+[ ] sensitive actions audited
+[ ] no secrets logged
+[ ] safe error model implemented
+[ ] correlation ID propagated
+[ ] protected route boundary implemented
+[ ] tests pass
+[ ] typecheck passes
+[ ] lint passes if configured
+[ ] build passes
+[ ] documentation updated
+[ ] capability registry updated honestly
+[ ] no future modules implemented
+[ ] no scope creep
+
+============================================================
+56. RELEASE GATE
+============================================================
+
+Classify:
+
+PASS
+PASS WITH EXTERNAL VERIFICATION
+FAIL
+
+PASS:
+
+all core tests pass.
+
+PASS WITH EXTERNAL VERIFICATION:
+
+code is complete but real external identity
+credentials/provider verification unavailable.
+
+FAIL:
+
+any critical tenant/auth boundary fails.
+
+Never report PASS if cross-tenant isolation fails.
+
+Never report PASS if revoked session remains valid.
+
+Never report PASS if privilege escalation succeeds.
+
+Never report PASS if last-owner invariant can be broken.
+
+============================================================
+57. FINAL VERIFICATION COMMANDS
+============================================================
+
+Run only relevant commands.
+
+Verify:
+
+node --version
+
+Prisma validation.
+
+Migration validation.
+
+Focused auth tests.
+
+Focused tenant isolation tests.
+
+Focused RBAC tests.
+
+Focused invitation tests.
+
+Focused concurrency tests.
+
+Full test suite.
+
+Typecheck.
+
+Lint if configured.
+
+Build.
+
+Start application.
+
+Smoke test protected/public routes.
+
+Inspect git diff.
+
+Confirm only intended files changed.
+
+============================================================
+58. FINAL REPORT FORMAT
+============================================================
+
+Return:
+
+A. EXECUTIVE RESULT
+
+PASS / PASS WITH EXTERNAL VERIFICATION / FAIL
+
+B. IMPLEMENTED
+
+Exact capabilities completed.
+
+C. AUTHENTICATION
+
+Actual state.
+
+D. TENANT
+
+Actual state.
+
+E. RBAC
+
+Actual role/permission state.
+
+F. SECURITY
+
+Actual protections verified.
+
+G. TEST EVIDENCE
+
+Exact tests passed/failed.
+
+H. EXTERNAL DEPENDENCIES
+
+Anything requiring Clerk/provider credentials.
+
+I. FILES CHANGED
+
+Exact files + reason.
+
+J. CAPABILITY REGISTRY
+
+Actual state.
+
+K. DEFERRED
+
+Only genuinely future work.
+
+L. KNOWN LIMITATIONS
+
+No hiding.
+
+M. NEXT MASTER PROMPT
+
+Identify the next dependency only.
+Do NOT execute it.
+
+============================================================
+59. STOP CONDITION
+============================================================
+
+Once all Definition of Done gates pass:
+
+STOP.
+
+DO NOT continue automatically.
+
+DO NOT begin AWS.
+
+DO NOT begin scan engine.
+
+DO NOT begin evidence engine.
+
+DO NOT begin billing.
+
+DO NOT begin AI.
+
+DO NOT redesign UI.
+
+Wait for next instruction.
+
+============================================================
+FINAL EXECUTION COMMAND
+============================================================
+
+EXECUTE MASTER PROMPT 03 NOW.
+
+CONTINUE FROM MASTER PROMPT 01 + 02.
+
+DO NOT REBUILD.
+
+NODE.JS 24.
+POSTGRESQL.
+PRISMA.
+TYPESCRIPT.
+
+AUTHENTICATION MUST BE REAL.
+AUTHORIZATION MUST BE SERVER-SIDE.
+TENANT ISOLATION MUST BE SERVER-SIDE.
+RBAC MUST BE CENTRALIZED.
+AUDIT MUST BE DURABLE.
+INVITATION MUST BE IDEMPOTENT.
+OWNERSHIP MUST BE CONCURRENCY-SAFE.
+
+NO FAKE PRODUCTION CLAIMS.
+NO FUTURE FEATURE SCOPE CREEP.
+NO UI REDESIGN.
+NO SPECULATIVE CODE.
+
+INSPECT
+→ IMPLEMENT
+→ TEST
+→ VERIFY
+→ DOCUMENT
+→ UPDATE CAPABILITY REGISTRY
+→ STOP.

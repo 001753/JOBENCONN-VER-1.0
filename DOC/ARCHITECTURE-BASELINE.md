@@ -1,6 +1,6 @@
 # JOBEN Architecture Baseline
 
-Status: **P0 foundation implemented; business capabilities are not implemented.**
+Status: **P0 foundation and Prompt 03 identity/access-control core implemented; external identity verification remains required.**
 
 ## Runtime authority
 
@@ -15,11 +15,11 @@ The baseline owns runtime foundation concerns: configuration, HTTP boundary, err
 
 The following conceptual boundaries are reserved without fake implementations:
 
-`IDENTITY`, `AUTHORIZATION`, `PROVIDER`, `SCAN`, `EVIDENCE`, `CONTROL`, `FINDING`, `REMEDIATION`, `REPORT`, `NOTIFICATION`, `BILLING`, `AI`, `GOVERNANCE`.
+`PROVIDER`, `SCAN`, `EVIDENCE`, `CONTROL`, `FINDING`, `REMEDIATION`, `REPORT`, `NOTIFICATION`, `BILLING`, `AI`, `GOVERNANCE`.
 
-Persistence models for identity references, organizations, memberships,
-invitations, audits, capabilities, and idempotency now exist. Authentication,
-authorization semantics, and workflows remain deferred.
+Persistence models for identity references, users, organizations, memberships,
+invitations, sessions, audits, capabilities, and idempotency exist. Prompt 03
+adds provider, session, tenant, RBAC, invitation, ownership, and audit workflows.
 
 Future work must keep tenant isolation, RBAC, auditability, provider adapters, scan orchestration, deterministic evaluation, evidence, remediation, billing, and AI Gateway behind server-owned boundaries.
 

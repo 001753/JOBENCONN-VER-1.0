@@ -6,7 +6,10 @@ Values are read from the process environment. No secrets belong in source contro
 | --- | --- | --- | --- |
 | `NODE_ENV` | development, test, production | Optional; defaults to `development` | Exact value: `development`, `test`, or `production`. |
 | `DATABASE_URL` | development, test, production | Required when database-backed runtime/tests are used; required in production | PostgreSQL connection URL. Never log or expose this value. |
-| `SESSION_SECRET` | development, test, production | Optional in P0 | Reserved secret for future identity/session work. Never use an example value. |
+| `SESSION_SECRET` | development, test, production | Required in production | Session configuration secret; never log or expose it. |
+| `AUTH_PROVIDER` | development, test, production | Optional; defaults to `dev` | `dev` adapter for local verification or `clerk` for the isolated provider boundary. |
+| `CLERK_SECRET_KEY` | development, test, production | Required when `AUTH_PROVIDER=clerk` in production | Provider credential; never commit or log it. |
+| `SESSION_TTL_SECONDS` | development, test, production | Optional; defaults to 28800 | Positive session lifetime in seconds. |
 | `PORT` | development, test, production | Optional; defaults to `5000` | Integer from 1 to 65535. |
 | `HOST` | development, test, production | Optional; defaults to `0.0.0.0` | Bind host for the HTTP process. |
 | `LOG_LEVEL` | development, test, production | Optional; defaults to `info` | Exact value: `debug`, `info`, `warn`, or `error`. |

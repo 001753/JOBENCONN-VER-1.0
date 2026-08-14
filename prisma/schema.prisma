@@ -57,6 +57,7 @@ enum IdempotencyStatus {
 model User {
   id                  String              @id @default(uuid()) @db.Uuid
   externalIdentityRef String?             @unique @db.VarChar(255)
+  email               String?             @db.VarChar(320)
   status              UserStatus          @default(ACTIVE)
   createdAt           DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime            @updatedAt @db.Timestamptz(3)
@@ -64,8 +65,26 @@ model User {
   invitationsAccepted Invitation[]        @relation("InvitationAcceptedBy")
   auditEvents         AuditEvent[]        @relation("AuditActor")
   idempotencyRecords  IdempotencyRecord[]
+  sessions            Session[]
 
   @@index([status])
+}
+
+model Session {
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @db.Uuid
+  tokenDigest          String    @unique @db.VarChar(128)
+  csrfTokenDigest      String    @db.VarChar(128)
+  activeOrganizationId String?   @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt            DateTime  @db.Timestamptz(3)
+  lastUsedAt           DateTime?
+  revokedAt            DateTime?
+  version              Int       @default(1)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 model Organization {
