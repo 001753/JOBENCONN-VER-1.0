@@ -111,7 +111,8 @@
   };
   const render = (summary, findings) => {
     currentSummary = summary; currentFindings = findings;
-    $("organization-label").textContent = summary.organizationId;
+     $("organization-label").textContent = summary.organizationId;
+     $("top-organization").textContent = summary.organizationId;
     $("data-source").textContent = summary.source || "backend";
     $("last-refresh").textContent = `Refreshed ${formatDate(new Date().toISOString())}`;
     renderPosture(summary); renderMetrics(summary); renderRisk(summary); renderActions(summary);

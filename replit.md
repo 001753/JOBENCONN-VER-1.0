@@ -113,3 +113,13 @@ applied with `npx prisma migrate deploy`. Verification completed with:
 - `/dashboard` — HTTP 200; unauthenticated state is explicit and protected
 - authenticated `/dashboard/summary` — real tenant-backed data with
   `NOT_EVALUATED` / `NOT_CALCULATED` when no scan exists
+
+### Dashboard UI addendum
+
+The dashboard is served from `/dashboard` using the existing protected API
+contracts. The v2 shell in `public/dashboard-v2.html`, `public/dashboard-v2.css`,
+and `public/dashboard-v2.js` provides the JOBEN security-intelligence layout:
+compact navigation, tenant context, universal search, posture/action panels,
+truthful empty states, drill-down previews, responsive breakpoints, and
+persisted dark/light/system theme behavior. It does not create frontend demo
+metrics; unavailable backend values remain explicitly uncalculated.
