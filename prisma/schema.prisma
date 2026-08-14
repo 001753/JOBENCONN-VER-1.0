@@ -266,6 +266,7 @@ model AwsConnection {
   updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
   organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   accounts          AwsAccount[]
+  resources         AwsResource[]
   discoveryRuns     DiscoveryRun[]
 
   @@unique([organizationId, name])
@@ -326,6 +327,7 @@ model AwsResource {
   discoveredAt   DateTime          @default(now()) @db.Timestamptz(3)
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
   account        AwsAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  connection     AwsConnection     @relation(fields: [connectionId], references: [id], onDelete: Restrict)
 
   @@unique([organizationId, accountId, region, service, resourceType, resourceId])
   @@index([organizationId, accountId, status])

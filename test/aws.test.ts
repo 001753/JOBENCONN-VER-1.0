@@ -24,6 +24,16 @@ test("AWS validation classifies bounded retries and rejects unsafe account input
   assert.equal(value, "ok");
   assert.equal(attempts, 3);
   assert.equal(classifyAwsError(Object.assign(new Error(), { name: "AccessDeniedException" })), "ACCESS_DENIED");
+  assert.equal(classifyAwsError(Object.assign(new Error(), { name: "TimeoutError" })), "TIMEOUT");
+  let elapsedBoundAttempts = 0;
+  await assert.rejects(
+    retryAws(async () => {
+      elapsedBoundAttempts += 1;
+      throw Object.assign(new Error("throttled"), { name: "ThrottlingException" });
+    }, { maxAttempts: 10, maxElapsedMs: 0, baseDelayMs: 0, sleep: async () => undefined }),
+    (error: unknown) => error instanceof AppError && error.code === "AWS_ERROR",
+  );
+  assert.equal(elapsedBoundAttempts, 1);
   await assert.rejects(
     retryAws(async () => { throw Object.assign(new Error(), { name: "AccessDeniedException" }); }, { baseDelayMs: 0, sleep: async () => undefined }),
     (error: unknown) => error instanceof AppError && error.code === "AWS_ERROR",
@@ -45,9 +55,11 @@ test("Prompt 04 AWS connection, account, inventory, idempotency, and tenant gate
   const authA = customerAwsAuthorization({ actorUserId: loginA.actor.userId, organizationId: loginA.organizationId, role: "OWNER" });
   const authB = customerAwsAuthorization({ actorUserId: loginB.actor.userId, organizationId: loginB.organizationId, role: "OWNER" });
 
+  let callerAccount = "123456789012";
+  let failS3 = false;
   const client: AwsReadOnlyDiscoveryClient = {
     async getCallerIdentity() {
-      return { accountId: "123456789012", arn: "arn:aws:iam::123456789012:role/JobenTest", userId: "AROATEST" };
+      return { accountId: callerAccount, arn: `arn:aws:iam::${callerAccount}:role/JobenTest`, userId: "AROATEST" };
     },
     async listRegions() {
       return [{ code: "us-east-1", name: "US East (N. Virginia)" }, { code: "ap-southeast-1", name: "Asia Pacific (Singapore)" }];
@@ -63,6 +75,7 @@ test("Prompt 04 AWS connection, account, inventory, idempotency, and tenant gate
       }];
     },
     async listS3Resources(accountId) {
+      if (failS3) throw Object.assign(new Error("denied"), { name: "AccessDeniedException" });
       return [{ region: "ap-southeast-1", service: "S3", resourceType: "bucket", resourceId: `joben-${accountId}`, resourceArn: `arn:aws:s3:::joben-${accountId}` }];
     },
     async listIamResources(accountId) {
@@ -99,6 +112,27 @@ test("Prompt 04 AWS connection, account, inventory, idempotency, and tenant gate
   const replay = await service.runDiscovery(authA, accounts[0]!.id, `corr-${suffix}-replay`, `idempotency-${suffix}`);
   assert.equal(replay.id, firstRun.id);
   assert.equal((await service.listResources(authA, accounts[0]!.id)).length, 4);
+
+  failS3 = true;
+  const partialRun = await service.runDiscovery(authA, accounts[0]!.id, `corr-${suffix}-partial`, `partial-${suffix}`);
+  assert.equal(partialRun.status, "PARTIAL");
+  assert.equal(partialRun.regionsSucceeded, 2);
+  assert.deepEqual(partialRun.errors, [{ scope: "s3", category: "ACCESS_DENIED" }]);
+  failS3 = false;
+
+  callerAccount = "210987654321";
+  await assert.rejects(
+    service.verifyConnection(authA, connection.connection.id, `corr-${suffix}-mismatch`),
+    (error: unknown) => error instanceof AppError && error.code === "IDENTITY_MISMATCH",
+  );
+  const failedConnection = await db.awsConnection.findUnique({ where: { id: connection.connection.id } });
+  assert.equal(failedConnection?.status, "ERROR");
+  assert.equal(failedConnection?.awsAccountId, "123456789012");
+  assert.equal(failedConnection?.lastErrorCategory, "IDENTITY_MISMATCH");
+  assert.equal(
+    await db.auditEvent.count({ where: { organizationId: loginA.organizationId, action: "aws.connection.identity_mismatch" } }),
+    1,
+  );
 
   await assert.rejects(
     service.getConnection(authB, connection.connection.id),

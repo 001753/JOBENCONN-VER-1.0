@@ -4,6 +4,7 @@ import { GetAccountSummaryCommand, IAMClient, ListRolesCommand, ListUsersCommand
 import { GetBucketLocationCommand, ListBucketsCommand, S3Client } from "@aws-sdk/client-s3";
 import { GetCallerIdentityCommand, STSClient } from "@aws-sdk/client-sts";
 import { fromNodeProviderChain, fromTemporaryCredentials } from "@aws-sdk/credential-providers";
+import { NodeHttpHandler } from "@smithy/node-http-handler";
 import type { AwsCredentialIdentityProvider } from "@smithy/types";
 import { AppError } from "./errors.js";
 
@@ -14,7 +15,9 @@ export type AwsErrorCategory =
   | "NOT_FOUND"
   | "REGION_UNAVAILABLE"
   | "NETWORK_ERROR"
+  | "TIMEOUT"
   | "AWS_SERVICE_ERROR"
+  | "IDENTITY_MISMATCH"
   | "UNKNOWN";
 
 export interface AwsCallerIdentity {
@@ -85,7 +88,11 @@ export class AwsSdkReadOnlyDiscoveryClient implements AwsReadOnlyDiscoveryClient
   private readonly iam: IAMClient;
 
   constructor(credentials: AwsCredentialIdentityProvider, region = process.env.AWS_REGION ?? "us-east-1") {
-    const shared = { credentials, region };
+    const requestHandler = new NodeHttpHandler({
+      connectionTimeout: 5_000,
+      requestTimeout: 30_000,
+    });
+    const shared = { credentials, region, requestHandler };
     this.sts = new STSClient(shared);
     this.ec2 = new EC2Client(shared);
     this.s3 = new S3Client(shared);
@@ -109,7 +116,11 @@ export class AwsSdkReadOnlyDiscoveryClient implements AwsReadOnlyDiscoveryClient
   }
 
   async listEc2Resources(region: string, accountId: string): Promise<readonly NormalizedAwsResource[]> {
-    const client = new EC2Client({ credentials: this.ec2.config.credentials, region });
+    const client = new EC2Client({
+      credentials: this.ec2.config.credentials,
+      region,
+      requestHandler: this.ec2.config.requestHandler,
+    });
     const resources: NormalizedAwsResource[] = [];
     let nextToken: string | undefined;
     do {
@@ -220,22 +231,37 @@ export function validateRoleArn(roleArn: string): void {
 }
 
 export function classifyAwsError(error: unknown): AwsErrorCategory {
-  const value = error as { name?: string; code?: string; $metadata?: { httpStatusCode?: number } } | null;
-  const name = `${value?.name ?? ""} ${value?.code ?? ""}`.toLowerCase();
-  const status = value?.$metadata?.httpStatusCode;
-  if (name.includes("invalidclienttoken") || name.includes("credential") || name.includes("accesskey")) return "INVALID_CREDENTIALS";
-  if (name.includes("accessdenied") || name.includes("unauthorized")) return "ACCESS_DENIED";
-  if (name.includes("throttl") || status === 429) return "THROTTLED";
-  if (name.includes("notfound") || status === 404) return "NOT_FOUND";
-  if (name.includes("region") && (name.includes("unavailable") || name.includes("disabled"))) return "REGION_UNAVAILABLE";
-  if (name.includes("timeout") || name.includes("network") || name.includes("socket") || name.includes("econn")) return "NETWORK_ERROR";
-  if (typeof status === "number" && status >= 500) return "AWS_SERVICE_ERROR";
+  let current: unknown = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    const value = current as { name?: string; code?: string; $metadata?: { httpStatusCode?: number }; cause?: unknown };
+    const name = `${value.name ?? ""} ${value.code ?? ""}`.toLowerCase();
+    const status = value.$metadata?.httpStatusCode;
+    if (name.includes("identitymismatch")) return "IDENTITY_MISMATCH";
+    if (name.includes("invalidclienttoken") || name.includes("credential") || name.includes("accesskey")) return "INVALID_CREDENTIALS";
+    if (name.includes("accessdenied") || name.includes("unauthorized")) return "ACCESS_DENIED";
+    if (name.includes("throttl") || status === 429) return "THROTTLED";
+    if (name.includes("notfound") || status === 404) return "NOT_FOUND";
+    if (name.includes("region") && (name.includes("unavailable") || name.includes("disabled"))) return "REGION_UNAVAILABLE";
+    if (name.includes("timeout") || name.includes("requesttimeout") || name.includes("abort") || name.includes("etimedout")) return "TIMEOUT";
+    if (name.includes("network") || name.includes("socket") || name.includes("econn")) return "NETWORK_ERROR";
+    if (typeof status === "number" && status >= 500) return "AWS_SERVICE_ERROR";
+    current = value.cause;
+  }
   return "UNKNOWN";
 }
 
-export async function retryAws<T>(operation: () => Promise<T>, options: { maxAttempts?: number; baseDelayMs?: number; sleep?: (ms: number) => Promise<void> } = {}): Promise<T> {
+export async function retryAws<T>(operation: () => Promise<T>, options: {
+  maxAttempts?: number;
+  maxElapsedMs?: number;
+  baseDelayMs?: number;
+  sleep?: (ms: number) => Promise<void>;
+  random?: () => number;
+} = {}): Promise<T> {
   const maxAttempts = options.maxAttempts ?? 3;
+  const maxElapsedMs = options.maxElapsedMs ?? 10_000;
   const sleep = options.sleep ?? ((ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const random = options.random ?? Math.random;
+  const startedAt = Date.now();
   let attempt = 0;
   while (true) {
     try {
@@ -244,10 +270,13 @@ export async function retryAws<T>(operation: () => Promise<T>, options: { maxAtt
       attempt += 1;
       const category = classifyAwsError(error);
       const retryable = category === "THROTTLED" || category === "NETWORK_ERROR" || category === "AWS_SERVICE_ERROR";
-      if (!retryable || attempt >= maxAttempts) {
+      const elapsedMs = Date.now() - startedAt;
+      if (!retryable || attempt >= maxAttempts || elapsedMs >= maxElapsedMs) {
         throw new AppError("AWS_ERROR", `AWS operation failed (${category}).`, { cause: error });
       }
-      await sleep((options.baseDelayMs ?? 50) * (2 ** (attempt - 1)));
+      const exponentialDelay = (options.baseDelayMs ?? 50) * (2 ** (attempt - 1));
+      const jitteredDelay = Math.round(exponentialDelay * (0.5 + Math.min(Math.max(random(), 0), 1) * 0.5));
+      await sleep(Math.min(jitteredDelay, Math.max(0, maxElapsedMs - elapsedMs)));
     }
   }
 }

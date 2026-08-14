@@ -21,6 +21,11 @@ Failed verification records `ERROR`. Revocation records `REVOKED` and also
 revokes the connected account representation. History is retained; revoked
 connections cannot start discovery or be verified again.
 
+Verification is audited as requested, succeeded, failed, or identity-mismatched.
+After a connection has an account identity, a later STS response for a
+different account is rejected and does not overwrite the stored identity.
+Database account/resource changes are committed atomically after the AWS call.
+
 ## Credential strategy
 
 The application never stores AWS access keys, secret keys, session tokens, or
@@ -35,6 +40,13 @@ The HTTP API accepts only the explicit `default-chain` source. It never accepts
 credential material and never returns credential material. Clerk or AWS live
 credentials are not configured in this development environment, so this
 repository does not claim live AWS verification.
+
+The SDK clients use a 5-second connection timeout and 30-second request
+timeout. Retries are limited to three attempts and ten seconds elapsed, with
+jittered exponential backoff. Invalid credentials, access denied, validation,
+identity mismatch, and other non-transient failures are not retried. Safe
+failure categories include `INVALID_CREDENTIALS`, `ACCESS_DENIED`, `THROTTLED`,
+`NETWORK_ERROR`, `TIMEOUT`, `AWS_SERVICE_ERROR`, and `IDENTITY_MISMATCH`.
 
 ## Authorization
 
@@ -76,3 +88,9 @@ HTTP boundary or enter audit metadata.
 Security-sensitive connection and discovery transitions are append-audited with
 organization, actor, target, result, reason, and correlation ID. Secrets are
 rejected by the existing audit metadata safety check.
+
+Discovery runs are synchronous in this foundation. A run left `RUNNING` beyond
+the recovery window is marked `FAILED` with a `TIMEOUT` lifecycle error on the
+next scoped run-list or discovery request. Successful regions and services are
+retained when another region/service fails, and resources absent from a
+successful scope are marked `STALE`, never hard-deleted.

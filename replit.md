@@ -38,3 +38,23 @@ Cookie-authenticated mutations require the CSRF token returned in the
 `joben_csrf` cookie to also be sent as `X-CSRF-Token`. PostgreSQL-backed Prompt
 03 integration tests run when `DATABASE_URL` is configured and migrations have
 been applied with `npx prisma migrate deploy`.
+
+### Prompt 04.A AWS verification
+
+The AWS adapter uses the AWS SDK v3 default credential provider chain
+(environment, shared profile, or workload/IAM role). It never accepts or stores
+access keys, secret keys, session tokens, or raw external IDs. An optional
+`roleArn` is assumed through the official SDK provider and is verified with
+`STS GetCallerIdentity` before the connection becomes active.
+
+AWS calls use a bounded SDK request timeout and retry only throttling,
+transient-network, or temporary 5xx failures. Discovery is read-only, paginated
+for EC2/IAM, idempotent at the database constraint, and records region/service
+partial failures without discarding successful inventory. Interrupted runs older
+than the recovery window are marked failed rather than left running forever.
+
+Run a live smoke check only in an environment with an AWS provider configured.
+Create a connection through the authenticated API; the live result must come
+from AWS STS. Without an available provider, live verification remains pending
+and no success is fabricated. Required least-privilege actions are listed in
+`DOC/AWS-INTEGRATION.md`.
