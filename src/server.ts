@@ -8,6 +8,7 @@ import { IdentityService } from "./identity-service.js";
 import { StructuredLogger } from "./logger.js";
 import { SessionManager, SESSION_COOKIE, parseCookies } from "./session.js";
 import { FixedWindowRateLimiter } from "./rate-limit.js";
+import { AwsService, customerAwsAuthorization } from "./aws-service.js";
 
 const MAX_REQUEST_BYTES = 1_048_576;
 const authRateLimiter = new FixedWindowRateLimiter(10, 60_000);
@@ -93,6 +94,7 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
     ? new ClerkIdentityProvider(config.clerkSecretKey)
     : new DevIdentityProvider(config.environment !== "production");
   const identity = new IdentityService(db, sessions);
+  const aws = new AwsService(db);
   const cookies = parseCookies(request.headers.cookie);
   const sessionToken = cookies[SESSION_COOKIE];
   const csrfToken = request.headers["x-csrf-token"];
@@ -164,6 +166,88 @@ async function route(request: IncomingMessage, response: ServerResponse, config:
       correlationId,
     });
     sendJson(response, 201, { organization });
+    return;
+  }
+
+  const awsAuthorization = async () => {
+    const organizationId = actor.session.activeOrganizationId;
+    if (!organizationId) throw new AppError("ORG_NOT_FOUND", "An active organization is required.");
+    const organization = await identity.authorizeOrganization(actor, organizationId, "organization.read", correlationId);
+    return customerAwsAuthorization({ actorUserId: actor.userId, organizationId: organization.organizationId, role: organization.role });
+  };
+
+  if (path === "/aws/connections" && method === "GET") {
+    const auth = await awsAuthorization();
+    sendJson(response, 200, { connections: await aws.listConnections(auth) });
+    return;
+  }
+
+  if (path === "/aws/connections" && method === "POST") {
+    await requireCsrf();
+    const body = await readJson(request);
+    const auth = await awsAuthorization();
+    const connection = await aws.createConnection(auth, {
+      name: requiredString(body.name, "name"),
+      credentialSource: requiredString(body.credentialSource, "credentialSource"),
+      ...(typeof body.roleArn === "string" ? { roleArn: body.roleArn.trim() } : {}),
+    }, correlationId);
+    sendJson(response, 201, connection);
+    return;
+  }
+
+  const awsConnectionMatch = /^\/aws\/connections\/([^/]+)(?:\/(verify|revoke))?$/.exec(path);
+  if (awsConnectionMatch) {
+    const connectionId = awsConnectionMatch[1];
+    const action = awsConnectionMatch[2];
+    if (!connectionId) throw new AppError("NOT_FOUND", "Route not found.");
+    const auth = await awsAuthorization();
+    if (method === "GET" && !action) {
+      sendJson(response, 200, { connection: await aws.getConnection(auth, connectionId) });
+      return;
+    }
+    if (method === "POST" && action === "verify") {
+      await requireCsrf();
+      sendJson(response, 200, await aws.verifyConnection(auth, connectionId, correlationId));
+      return;
+    }
+    if (method === "POST" && action === "revoke") {
+      await requireCsrf();
+      await aws.revokeConnection(auth, connectionId, correlationId);
+      sendJson(response, 204, null);
+      return;
+    }
+  }
+
+  if (path === "/aws/accounts" && method === "GET") {
+    const auth = await awsAuthorization();
+    sendJson(response, 200, { accounts: await aws.listAccounts(auth) });
+    return;
+  }
+
+  const awsDiscoveryMatch = /^\/aws\/accounts\/([^/]+)\/discovery$/.exec(path);
+  if (awsDiscoveryMatch) {
+    const accountId = awsDiscoveryMatch[1];
+    if (!accountId) throw new AppError("NOT_FOUND", "Route not found.");
+    const auth = await awsAuthorization();
+    if (method === "GET") {
+      sendJson(response, 200, { runs: await aws.listRuns(auth, accountId) });
+      return;
+    }
+    if (method === "POST") {
+      await requireCsrf();
+      const body = await readJson(request);
+      const idempotencyKey = typeof body.idempotencyKey === "string" ? body.idempotencyKey : undefined;
+      sendJson(response, 200, { run: await aws.runDiscovery(auth, accountId, correlationId, idempotencyKey) });
+      return;
+    }
+  }
+
+  const awsResourcesMatch = /^\/aws\/accounts\/([^/]+)\/resources$/.exec(path);
+  if (awsResourcesMatch && method === "GET") {
+    const accountId = awsResourcesMatch[1];
+    if (!accountId) throw new AppError("NOT_FOUND", "Route not found.");
+    const auth = await awsAuthorization();
+    sendJson(response, 200, { resources: await aws.listResources(auth, accountId) });
     return;
   }
 

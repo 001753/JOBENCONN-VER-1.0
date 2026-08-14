@@ -14,14 +14,20 @@ export const PERMISSIONS = [
   "ownership.transfer",
   "audit.read",
   "settings.update",
+  "aws.connection.read",
+  "aws.connection.create",
+  "aws.connection.update",
+  "aws.connection.revoke",
+  "aws.discovery.run",
+  "aws.inventory.read",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 const rolePermissions: Record<Role, ReadonlySet<Permission>> = {
   OWNER: new Set(PERMISSIONS),
-  ADMIN: new Set(["organization.read", "organization.update", "member.read", "member.invite", "member.update", "member.remove", "role.change", "audit.read", "settings.update"]),
-  MEMBER: new Set(["organization.read", "member.read"]),
-  VIEWER: new Set(["organization.read", "member.read"]),
+  ADMIN: new Set(PERMISSIONS.filter((permission) => permission !== "ownership.transfer")),
+  MEMBER: new Set(["organization.read", "member.read", "aws.connection.read", "aws.inventory.read"]),
+  VIEWER: new Set(["organization.read", "member.read", "aws.connection.read", "aws.inventory.read"]),
 };
 
 export interface AuthorizationActor {

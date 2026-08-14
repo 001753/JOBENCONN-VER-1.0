@@ -13,5 +13,11 @@ Values are read from the process environment. No secrets belong in source contro
 | `PORT` | development, test, production | Optional; defaults to `5000` | Integer from 1 to 65535. |
 | `HOST` | development, test, production | Optional; defaults to `0.0.0.0` | Bind host for the HTTP process. |
 | `LOG_LEVEL` | development, test, production | Optional; defaults to `info` | Exact value: `debug`, `info`, `warn`, or `error`. |
+| `AWS_REGION` | development, test, production | Optional | Default region for the AWS SDK provider chain; discovery uses AWS `DescribeRegions` as its source of truth. |
 
 Production fails fast with a configuration error if `DATABASE_URL` is absent. Database-backed readiness is checked when the variable is configured. `.env.example` contains no real credentials.
+
+AWS credentials are intentionally not listed as application secrets. AWS SDK v3
+uses its default provider chain and the application does not persist or accept
+raw credential material. A live AWS connection requires an external provider
+and the least-privilege IAM policy documented in `DOC/AWS-INTEGRATION.md`.

@@ -54,6 +54,39 @@ enum IdempotencyStatus {
   EXPIRED
 }
 
+enum AwsConnectionStatus {
+  PENDING
+  ACTIVE
+  ERROR
+  REVOKED
+}
+
+enum AwsAccountStatus {
+  ACTIVE
+  ERROR
+  REVOKED
+}
+
+enum AwsRegionStatus {
+  AVAILABLE
+  UNAVAILABLE
+}
+
+enum AwsResourceStatus {
+  ACTIVE
+  STALE
+  DELETED
+}
+
+enum DiscoveryRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  PARTIAL
+  FAILED
+  CANCELLED
+}
+
 model User {
   id                  String              @id @default(uuid()) @db.Uuid
   externalIdentityRef String?             @unique @db.VarChar(255)
@@ -105,6 +138,10 @@ model Organization {
   auditEvents         AuditEvent[]
   capabilityRecords   CapabilityRecord[]
   idempotencyRecords  IdempotencyRecord[]
+  awsConnections      AwsConnection[]
+  awsAccounts         AwsAccount[]
+  awsResources        AwsResource[]
+  discoveryRuns       DiscoveryRun[]
 
   @@index([status])
 }
@@ -210,4 +247,115 @@ model IdempotencyRecord {
   @@unique([scopeKey, key])
   @@index([organizationId, key])
   @@index([expiresAt, status])
+}
+
+model AwsConnection {
+  id                String              @id @default(uuid()) @db.Uuid
+  organizationId    String              @db.Uuid
+  name              String              @db.VarChar(160)
+  credentialSource  String              @db.VarChar(80)
+  roleArn           String?             @db.VarChar(2048)
+  externalIdDigest  String?             @db.VarChar(128)
+  status            AwsConnectionStatus @default(PENDING)
+  awsAccountId      String?             @db.VarChar(12)
+  callerArn         String?             @db.VarChar(2048)
+  callerUserId      String?             @db.VarChar(512)
+  lastErrorCategory String?             @db.VarChar(80)
+  lastVerifiedAt    DateTime?           @db.Timestamptz(3)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  organization      Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  accounts          AwsAccount[]
+  discoveryRuns     DiscoveryRun[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, status])
+}
+
+model AwsAccount {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @db.Uuid
+  connectionId   String           @db.Uuid
+  awsAccountId   String           @db.VarChar(12)
+  alias          String?          @db.VarChar(200)
+  status         AwsAccountStatus @default(ACTIVE)
+  lastVerifiedAt DateTime?
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+  organization   Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  connection     AwsConnection    @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  regions        AwsRegion[]
+  resources      AwsResource[]
+  discoveryRuns  DiscoveryRun[]
+
+  @@unique([organizationId, awsAccountId])
+  @@index([connectionId, status])
+}
+
+model AwsRegion {
+  id               String          @id @default(uuid()) @db.Uuid
+  accountId        String          @db.Uuid
+  regionCode       String          @db.VarChar(64)
+  regionName       String?         @db.VarChar(160)
+  status           AwsRegionStatus @default(AVAILABLE)
+  lastDiscoveredAt DateTime?
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
+  account          AwsAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([accountId, regionCode])
+  @@index([regionCode, status])
+}
+
+model AwsResource {
+  id             String            @id @default(uuid()) @db.Uuid
+  organizationId String            @db.Uuid
+  accountId      String            @db.Uuid
+  connectionId   String            @db.Uuid
+  region         String            @db.VarChar(64)
+  service        String            @db.VarChar(80)
+  resourceType   String            @db.VarChar(120)
+  resourceId     String            @db.VarChar(512)
+  resourceArn    String?           @db.VarChar(2048)
+  resourceName   String?           @db.VarChar(512)
+  status         AwsResourceStatus @default(ACTIVE)
+  tags           Json              @default("{}")
+  metadata       Json              @default("{}")
+  firstSeenAt    DateTime          @default(now()) @db.Timestamptz(3)
+  lastSeenAt     DateTime          @default(now()) @db.Timestamptz(3)
+  discoveredAt   DateTime          @default(now()) @db.Timestamptz(3)
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account        AwsAccount        @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, accountId, region, service, resourceType, resourceId])
+  @@index([organizationId, accountId, status])
+  @@index([service, resourceType, region])
+}
+
+model DiscoveryRun {
+  id                  String             @id @default(uuid()) @db.Uuid
+  organizationId      String             @db.Uuid
+  accountId           String             @db.Uuid
+  connectionId        String             @db.Uuid
+  status              DiscoveryRunStatus @default(QUEUED)
+  idempotencyKey      String?            @unique @db.VarChar(255)
+  startedAt           DateTime?
+  finishedAt          DateTime?
+  regionsAttempted    Int                @default(0)
+  regionsSucceeded    Int                @default(0)
+  regionsFailed       Int                @default(0)
+  resourcesDiscovered Int                @default(0)
+  resourcesUpdated    Int                @default(0)
+  resourcesStale      Int                @default(0)
+  errorCount          Int                @default(0)
+  errors              Json               @default("[]")
+  correlationId       String             @db.VarChar(128)
+  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  account             AwsAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  connection          AwsConnection      @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status, createdAt])
+  @@index([accountId, createdAt])
 }

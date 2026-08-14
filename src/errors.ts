@@ -19,6 +19,7 @@ export type ErrorCode =
   | "CONFLICT"
   | "CONFIGURATION_ERROR"
   | "DEPENDENCY_ERROR"
+  | "AWS_ERROR"
   | "NOT_IMPLEMENTED"
   | "INTERNAL_ERROR";
 
@@ -43,6 +44,7 @@ const statusByCode: Record<ErrorCode, number> = {
   CONFLICT: 409,
   CONFIGURATION_ERROR: 500,
   DEPENDENCY_ERROR: 503,
+  AWS_ERROR: 502,
   NOT_IMPLEMENTED: 501,
   INTERNAL_ERROR: 500,
 };

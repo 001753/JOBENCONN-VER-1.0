@@ -1,0 +1,1795 @@
+MASTER PROMPT 04 — JOBEN
+AWS INTEGRATION + ACCOUNT DISCOVERY FOUNDATION
+
+MODE:
+PRECISION-FIRST
+CREDIT-EFFICIENT
+FULL-POWER
+REAL-WORK
+PRODUCTION-GRADE
+CORE SYSTEM COMPLETION
+
+RUNTIME:
+Node.js 24.x
+
+DATABASE:
+PostgreSQL
+
+ORM:
+Prisma
+
+LANGUAGE:
+TypeScript
+
+STATUS:
+CONTINUE FROM MASTER PROMPT 01 + 02 + 03
+
+============================================================
+0. PRIMARY MISSION
+============================================================
+
+Lanjutkan repository JOBEN yang sudah dibangun.
+
+JANGAN membuat project baru.
+JANGAN rebuild.
+JANGAN mengganti architecture yang sudah verified.
+JANGAN menghapus migration/schema yang sudah benar.
+JANGAN mengulang authentication/RBAC yang sudah selesai.
+
+MASTER PROMPT 04 bertugas menyelesaikan:
+
+AWS CONNECTION
++
+AWS ACCOUNT DISCOVERY
++
+AWS RESOURCE DISCOVERY FOUNDATION
++
+AWS SECURITY CONTEXT
++
+CREDENTIAL SAFETY
++
+MULTI-ACCOUNT FOUNDATION
++
+SCAN INPUT FOUNDATION
+
+Target akhirnya:
+
+JOBEN
+→ authenticated organization
+→ authorized AWS connection
+→ validated AWS account
+→ discovered AWS account metadata
+→ discovered AWS regions
+→ discovered supported resources
+→ normalized inventory
+→ persisted discovery state
+→ ready for future security scan engine
+
+Prompt ini BELUM mengimplementasikan seluruh security scanner.
+
+============================================================
+1. FIRST ACTION — INSPECT, DO NOT CODE IMMEDIATELY
+============================================================
+
+Inspect existing implementation:
+
+- Prisma schema
+- migration history
+- Organization
+- Membership
+- RBAC
+- Permission system
+- AuditEvent
+- repository pattern
+- transaction utilities
+- error model
+- correlation ID
+- capability registry
+- environment validation
+- existing service architecture
+- existing API architecture
+- existing test framework
+- existing AWS-related packages
+- package.json
+- documentation
+- git status
+
+Cari apakah AWS integration foundation
+sudah sebagian dibuat oleh prompt sebelumnya.
+
+Jika sudah ada:
+
+EXTEND.
+
+Jika belum:
+
+IMPLEMENT.
+
+JANGAN DUPLICATE.
+
+============================================================
+2. SCOPE BOUNDARY
+============================================================
+
+PROMPT 04 HARUS MENYELESAIKAN:
+
+1. AWS connection model
+2. AWS credential abstraction
+3. AWS account validation
+4. AWS caller identity verification
+5. AWS account metadata discovery
+6. AWS region discovery
+7. AWS resource inventory foundation
+8. normalized resource representation
+9. multi-account data model
+10. connection lifecycle
+11. permission boundary
+12. audit integration
+13. error/retry foundation
+14. discovery persistence
+15. test coverage
+16. documentation
+
+PROMPT 04 TIDAK BOLEH MENGERJAKAN:
+
+- full security scanner
+- compliance engine
+- control evaluation
+- finding engine
+- remediation
+- AWS Security Hub full ingestion
+- GuardDuty analysis
+- CloudTrail forensic analysis
+- AI analysis
+- report generation
+- billing
+- notification system
+- dashboard redesign
+
+Semua itu tetap untuk prompt berikutnya.
+
+============================================================
+3. AWS SDK
+============================================================
+
+Gunakan AWS SDK for JavaScript v3.
+
+Gunakan modular packages.
+
+JANGAN install AWS SDK v2.
+
+JANGAN membuat custom HTTP implementation
+untuk AWS API jika official SDK tersedia.
+
+Gunakan service clients sesuai kebutuhan.
+
+Minimal foundation harus dapat mendukung:
+
+STS
+EC2
+S3
+IAM
+
+Tambahkan service client lain hanya jika discovery
+memang membutuhkan dan PRD mengharuskannya.
+
+JANGAN install seluruh AWS service SDK
+tanpa kebutuhan.
+
+CREDIT EFFICIENCY:
+
+install hanya package yang benar-benar diperlukan.
+
+============================================================
+4. AWS CREDENTIAL ARCHITECTURE
+============================================================
+
+Credential handling adalah SECURITY-CRITICAL.
+
+Jangan menyimpan AWS secret access key
+sebagai plaintext di database.
+
+Jangan menaruh credential di frontend.
+
+Jangan mengirim secret melalui URL.
+
+Jangan menulis credential ke log.
+
+Jangan menyimpan credential di audit event.
+
+Gunakan abstraction:
+
+AwsCredentialProvider
+
+atau equivalent existing architecture.
+
+Provider harus dapat mendukung:
+
+- temporary credentials
+- role assumption
+- external credential source
+- future AWS Organizations integration
+
+Jangan mengunci seluruh system
+pada satu credential strategy.
+
+============================================================
+5. RECOMMENDED CONNECTION MODEL
+============================================================
+
+AWS connection harus menjadi entity
+yang dimiliki oleh Organization.
+
+Concept:
+
+Organization
+→ AwsConnection
+→ AwsAccount
+→ AwsRegion
+→ AwsResource
+
+JANGAN:
+
+User
+→ AwsAccount
+
+karena akses AWS adalah resource tenant.
+
+============================================================
+6. AWS CONNECTION LIFECYCLE
+============================================================
+
+Connection state minimal:
+
+PENDING
+ACTIVE
+ERROR
+REVOKED
+
+atau existing PRD equivalent.
+
+Flow:
+
+CREATE
+→ VALIDATE
+→ ACTIVE
+
+Jika validasi gagal:
+
+ERROR
+
+Jika credential dicabut:
+
+REVOKED
+
+Jangan menghapus history connection
+hanya karena connection tidak aktif.
+
+============================================================
+7. AWS CONNECTION OWNERSHIP
+============================================================
+
+Setiap AWS connection:
+
+WAJIB mempunyai organizationId.
+
+Semua query harus organization scoped.
+
+User dari Org A:
+
+MUST NOT melihat connection Org B.
+
+Test IDOR:
+
+GET connection B
+→ DENY.
+
+Update connection B
+→ DENY.
+
+Delete/revoke connection B
+→ DENY.
+
+============================================================
+8. AUTHORIZATION
+============================================================
+
+AWS operations wajib melewati:
+
+Authentication
+→ Organization Context
+→ Permission
+→ AWS Connection Authorization
+→ AWS operation
+
+Jangan percaya organizationId dari client.
+
+Jangan percaya awsConnectionId dari client
+tanpa server-side ownership check.
+
+Minimal permission concept:
+
+aws.connection.read
+aws.connection.create
+aws.connection.update
+aws.connection.revoke
+aws.discovery.run
+aws.inventory.read
+
+Gunakan permission vocabulary existing
+jika sudah tersedia.
+
+============================================================
+9. AWS ACCOUNT VALIDATION
+============================================================
+
+Saat connection dibuat:
+
+JOBEN harus memverifikasi AWS identity.
+
+Gunakan STS GetCallerIdentity.
+
+Verifikasi minimal:
+
+- account ID
+- caller ARN
+- user ID
+- request success
+- credentials validity
+
+Jangan hanya menganggap credential valid
+karena formatnya benar.
+
+Connection ACTIVE hanya setelah
+actual AWS API verification berhasil.
+
+============================================================
+10. ACCOUNT ID SAFETY
+============================================================
+
+AWS Account ID harus divalidasi.
+
+Expected:
+
+12-digit AWS account ID.
+
+Jangan menerima account ID arbitrary
+sebagai verified account.
+
+Database account identity harus berasal
+dari AWS response.
+
+Client-provided account ID hanya menjadi
+requested hint, bukan source of truth.
+
+============================================================
+11. AWS ACCOUNT ENTITY
+============================================================
+
+Persist normalized account information.
+
+Minimal:
+
+id
+organizationId
+awsAccountId
+alias/name jika tersedia
+status
+connectionId
+createdAt
+updatedAt
+lastVerifiedAt
+
+Unique constraint:
+
+organizationId + awsAccountId
+
+Tidak boleh ada duplicate active representation
+dalam organization yang sama.
+
+============================================================
+12. MULTI-ACCOUNT FOUNDATION
+============================================================
+
+Satu Organization dapat memiliki:
+
+AWS Account A
+AWS Account B
+AWS Account C
+
+Setiap account harus terisolasi.
+
+Contoh:
+
+Organization X
+├── Account 111111111111
+├── Account 222222222222
+└── Account 333333333333
+
+Semua inventory harus mempunyai:
+
+organizationId
++
+awsAccountId
++
+connectionId
+
+Jangan membuat inventory global
+tanpa tenant/account scope.
+
+============================================================
+13. AWS REGION DISCOVERY
+============================================================
+
+Setelah account terverifikasi:
+
+discover enabled/available regions.
+
+Gunakan AWS API yang sesuai.
+
+Persist normalized region data.
+
+Minimal:
+
+regionCode
+regionName jika tersedia
+status
+accountId
+lastDiscoveredAt
+
+Jangan hardcode daftar region
+sebagai source of truth.
+
+AWS response adalah source of truth.
+
+============================================================
+14. REGION FAILURE ISOLATION
+============================================================
+
+Jika region tertentu gagal diakses:
+
+JANGAN membuat seluruh account discovery gagal
+jika region lain masih dapat diproses.
+
+Catat:
+
+region
+error category
+timestamp
+correlation ID
+
+Discovery harus menghasilkan status
+partial bila memang sebagian region gagal.
+
+Jangan mengarang resource dari region yang gagal.
+
+============================================================
+15. RESOURCE DISCOVERY FOUNDATION
+============================================================
+
+Buat generic normalized inventory model.
+
+Contoh:
+
+AwsResource
+
+Fields minimal:
+
+id
+organizationId
+awsAccountId
+connectionId
+region
+service
+resourceType
+resourceId
+resourceArn jika tersedia
+resourceName jika tersedia
+status
+rawMetadata reference/structured metadata
+firstSeenAt
+lastSeenAt
+discoveredAt
+
+Gunakan struktur yang memungkinkan
+future security controls membaca inventory
+tanpa mengubah schema besar-besaran.
+
+============================================================
+16. RESOURCE NORMALIZATION
+============================================================
+
+AWS API response berbeda-beda.
+
+Normalize menjadi:
+
+service
+resourceType
+resourceId
+arn
+region
+accountId
+tags
+metadata
+observedAt
+
+Jangan menyimpan setiap AWS response
+secara tidak terstruktur sebagai satu-satunya source.
+
+Raw response boleh disimpan jika architecture
+membutuhkannya, tetapi normalized representation
+wajib tersedia.
+
+============================================================
+17. INITIAL SERVICE INVENTORY
+============================================================
+
+Implement discovery foundation
+untuk service yang benar-benar diperlukan
+oleh JOBEN MVP.
+
+Minimal foundation:
+
+EC2
+S3
+IAM
+
+Untuk setiap service:
+
+- list/discover resource
+- normalize
+- persist
+- update lastSeen
+- handle pagination
+- handle API errors
+
+JANGAN mengklaim semua AWS resource telah didukung.
+
+Capability registry harus mencatat
+service yang benar-benar verified.
+
+============================================================
+18. PAGINATION
+============================================================
+
+WAJIB menangani AWS API pagination.
+
+Jangan hanya mengambil first page.
+
+Test:
+
+resource > one page.
+
+Expected:
+
+semua halaman diproses.
+
+Hindari infinite loop.
+
+============================================================
+19. IDEMPOTENT DISCOVERY
+============================================================
+
+Discovery dapat dijalankan berkali-kali.
+
+Repeated scan:
+
+MUST NOT create duplicate resources.
+
+Gunakan natural identity:
+
+organization
++
+account
++
+region
++
+service
++
+resourceType
++
+resourceId
+
+atau equivalent canonical key.
+
+Update existing resource.
+
+Create only when new.
+
+============================================================
+20. RESOURCE DISAPPEARANCE
+============================================================
+
+Jika resource tidak ditemukan pada discovery terbaru:
+
+JANGAN langsung hard-delete.
+
+Mark:
+
+ACTIVE
+STALE
+DELETED/NOT_FOUND
+
+sesuai existing lifecycle.
+
+History harus tetap dapat dipertahankan.
+
+Security scanner berikutnya membutuhkan
+historical evidence.
+
+============================================================
+21. TAGS
+============================================================
+
+Jika AWS API menyediakan tags:
+
+normalize tags.
+
+Do not assume tags exist.
+
+Support:
+
+key
+value
+
+Jangan menjadikan tag sebagai authorization source
+kecuali PRD secara eksplisit mengharuskan.
+
+============================================================
+22. IAM DISCOVERY
+============================================================
+
+IAM sangat sensitif.
+
+Discovery foundation minimal harus mampu
+mengambil metadata yang diperlukan
+untuk future security analysis.
+
+JANGAN menyimpan:
+
+secret access keys
+passwords
+credential secrets
+
+JANGAN melakukan destructive IAM operation.
+
+Read-only discovery saja.
+
+============================================================
+23. S3 DISCOVERY
+============================================================
+
+Discovery harus dapat mengidentifikasi
+bucket yang accessible.
+
+Persist:
+
+bucket name
+region jika tersedia
+ARN jika tersedia
+observed metadata
+
+JANGAN download object.
+
+JANGAN membaca isi object.
+
+JANGAN mengubah bucket.
+
+JANGAN mengubah ACL/policy.
+
+Read-only forensic discovery.
+
+============================================================
+24. EC2 DISCOVERY
+============================================================
+
+Discovery minimal:
+
+instances
+security groups jika diperlukan
+VPC/network identity jika diperlukan
+
+Persist normalized resource identity.
+
+JANGAN:
+
+start
+stop
+terminate
+modify
+reboot
+
+Read-only.
+
+============================================================
+25. READ-ONLY GUARANTEE
+============================================================
+
+AWS discovery layer:
+
+MUST NOT execute mutation APIs.
+
+Buat explicit boundary:
+
+AwsReadOnlyDiscoveryClient
+
+Jika memungkinkan,
+service clients yang digunakan discovery
+hanya expose operasi read.
+
+============================================================
+26. AWS PERMISSION REQUIREMENTS
+============================================================
+
+Dokumentasikan IAM policy minimum
+yang diperlukan untuk discovery.
+
+Jangan meminta:
+
+AdministratorAccess
+
+jika tidak diperlukan.
+
+Least privilege.
+
+Dokumentasi harus menyebut:
+
+service
+action
+purpose
+
+Contoh conceptual:
+
+sts:GetCallerIdentity
+
+ec2:DescribeInstances
+ec2:DescribeRegions
+ec2:DescribeSecurityGroups
+
+s3:ListAllMyBuckets
+s3:GetBucketLocation
+
+iam:GetAccountSummary
+iam:ListUsers
+iam:ListRoles
+
+Sesuaikan dengan API discovery
+yang benar-benar diimplementasikan.
+
+============================================================
+27. ROLE ASSUMPTION FOUNDATION
+============================================================
+
+Jika PRD menggunakan cross-account model:
+
+siapkan abstraction untuk:
+
+AssumeRole
+
+dengan:
+
+roleArn
+externalId bila diperlukan
+sessionName
+duration constraint
+
+Jangan menganggap role assumption
+sudah LIVE jika belum diuji terhadap AWS nyata.
+
+Jika belum dibutuhkan oleh current MVP:
+
+buat interface/future-safe boundary,
+jangan membangun seluruh cross-account orchestration.
+
+============================================================
+28. EXTERNAL ID
+============================================================
+
+Jika cross-account role model digunakan:
+
+external ID harus cryptographically strong.
+
+Jangan menggunakan:
+
+organizationId
+email
+timestamp saja
+
+sebagai external ID security mechanism.
+
+Jangan log external ID sensitif.
+
+============================================================
+29. AWS API ERROR CLASSIFICATION
+============================================================
+
+Normalize error:
+
+INVALID_CREDENTIALS
+ACCESS_DENIED
+THROTTLED
+NOT_FOUND
+REGION_UNAVAILABLE
+NETWORK_ERROR
+AWS_SERVICE_ERROR
+UNKNOWN
+
+Jangan expose raw AWS stack/error
+langsung ke frontend.
+
+============================================================
+30. RETRY POLICY
+============================================================
+
+Retry hanya untuk transient failures.
+
+Retry candidates:
+
+throttling
+temporary network error
+certain 5xx
+
+DO NOT blindly retry:
+
+AccessDenied
+Invalid credentials
+Validation error
+NotFound
+
+Use bounded retry.
+
+No infinite retries.
+
+============================================================
+31. BACKOFF
+============================================================
+
+Gunakan exponential backoff
+dengan jitter jika existing architecture
+mendukung.
+
+Batas retry harus jelas.
+
+Discovery request tidak boleh
+menggantung tanpa batas.
+
+============================================================
+32. TIMEOUT
+============================================================
+
+AWS API calls harus mempunyai
+controlled timeout.
+
+No unbounded request.
+
+Jika AWS SDK configuration
+sudah mempunyai timeout layer:
+
+reuse.
+
+Jangan membuat duplicate infrastructure.
+
+============================================================
+33. DISCOVERY JOB MODEL
+============================================================
+
+Discovery harus dipisahkan dari HTTP request
+jika proses dapat memakan waktu lama.
+
+Gunakan existing queue abstraction
+dari Prompt 02 bila tersedia.
+
+Concept:
+
+DiscoveryJob
+
+states:
+
+QUEUED
+RUNNING
+COMPLETED
+PARTIAL
+FAILED
+CANCELLED
+
+Jangan membuat queue baru
+jika queue foundation sudah ada.
+
+============================================================
+34. JOB IDEMPOTENCY
+============================================================
+
+Discovery request harus idempotent.
+
+Gunakan idempotency key
+atau canonical job key.
+
+Duplicate request:
+
+tidak menghasilkan
+dua discovery job identik
+yang tidak diperlukan.
+
+============================================================
+35. DISCOVERY RUN
+============================================================
+
+Setiap discovery run harus memiliki:
+
+run ID
+organization
+account
+connection
+startedAt
+finishedAt
+status
+resource count
+error count
+correlation ID
+
+Jangan overwrite historical run
+secara destruktif.
+
+============================================================
+36. DISCOVERY METRICS
+============================================================
+
+Persist/return:
+
+accounts discovered
+regions attempted
+regions succeeded
+regions failed
+resources discovered
+resources updated
+resources stale
+errors
+duration
+
+Ini menjadi foundation untuk
+future scan observability.
+
+============================================================
+37. AUDIT
+============================================================
+
+Gunakan AuditEvent existing.
+
+Audit:
+
+AWS connection created
+AWS connection verified
+AWS connection failed
+AWS connection revoked
+discovery requested
+discovery started
+discovery completed
+discovery partially completed
+discovery failed
+system-level AWS access
+
+Jangan audit raw credential.
+
+============================================================
+38. CORRELATION
+============================================================
+
+Propagate correlation ID:
+
+HTTP request
+→ discovery job
+→ AWS client
+→ repository
+→ audit
+
+Jika async job:
+
+job correlation ID harus tetap
+terhubung ke initiating request.
+
+============================================================
+39. TENANT ISOLATION TEST
+============================================================
+
+CRITICAL.
+
+Org A:
+
+Account A
+
+Org B:
+
+Account B
+
+Test:
+
+Org A membaca Account B
+→ DENY.
+
+Org A menjalankan discovery Account B
+→ DENY.
+
+Org A membaca inventory Account B
+→ DENY.
+
+Org A memodifikasi connection B
+→ DENY.
+
+Tidak boleh ada IDOR.
+
+============================================================
+40. AWS ACCOUNT ISOLATION
+============================================================
+
+Dalam organization yang sama:
+
+Account A
+Account B
+
+Discovery Account A
+tidak boleh menghasilkan
+resource yang masuk ke Account B.
+
+Natural key harus account-scoped.
+
+Test wajib.
+
+============================================================
+41. CONCURRENT DISCOVERY
+============================================================
+
+Run discovery dua kali
+untuk account yang sama.
+
+Expected:
+
+tidak duplicate resource.
+
+Database constraints + transaction
+harus menjaga consistency.
+
+============================================================
+42. DATABASE CONSTRAINTS
+============================================================
+
+Gunakan database-level constraints
+untuk identity yang critical.
+
+Minimal:
+
+organization + awsAccountId unique
+
+connection identity unique sesuai model.
+
+resource natural identity unique.
+
+Jangan hanya mengandalkan application-level checks.
+
+============================================================
+43. ENCRYPTION
+============================================================
+
+Jika ada credential material
+yang memang harus disimpan:
+
+gunakan encryption-at-rest application layer
+dengan key dari environment/secret manager.
+
+Jangan hardcode encryption key.
+
+Jangan commit key.
+
+Jika architecture dapat menghindari
+penyimpanan long-lived credentials:
+
+PREFER.
+
+============================================================
+44. CREDENTIAL ROTATION
+============================================================
+
+Connection lifecycle harus mendukung
+credential replacement/rotation.
+
+Rotation:
+
+old credential
+→ validate new credential
+→ activate new credential
+→ invalidate old reference
+
+Jangan menghapus connection history.
+
+============================================================
+45. CONNECTION REVOKE
+============================================================
+
+Revoked connection:
+
+MUST NOT be usable for new discovery.
+
+Existing jobs:
+
+must handle revoked state safely.
+
+No new AWS request after authorization
+has determined connection revoked.
+
+============================================================
+46. SECRET REDACTION
+============================================================
+
+Implement/test redaction.
+
+Input:
+
+AWS_SECRET_ACCESS_KEY=abc...
+
+Logs/errors/audit:
+
+MUST NOT contain abc...
+
+Test explicitly.
+
+============================================================
+47. AWS SDK MOCKING
+============================================================
+
+Unit tests boleh menggunakan mock AWS clients.
+
+Tetapi jangan hanya mock.
+
+Jika environment menyediakan valid AWS test credentials:
+
+jalankan integration smoke test.
+
+Jika credentials tidak tersedia:
+
+jangan fake successful production verification.
+
+Mark:
+
+CODE VERIFIED
+EXTERNAL AWS VERIFICATION PENDING
+
+============================================================
+48. LOCAL DEVELOPMENT
+============================================================
+
+Development harus tetap dapat menjalankan
+unit/integration tests tanpa AWS credential nyata.
+
+Gunakan test adapter/mock.
+
+Namun:
+
+mock mode harus eksplisit.
+
+Jangan menyebut mock sebagai live AWS.
+
+============================================================
+49. DATABASE PERSISTENCE
+============================================================
+
+Semua state penting harus durable
+di PostgreSQL.
+
+Jangan gunakan memory store
+sebagai source of truth untuk:
+
+AWS connections
+AWS accounts
+inventory
+discovery runs
+
+Memory boleh hanya menjadi test adapter.
+
+============================================================
+50. API CONTRACT
+============================================================
+
+Implement minimal protected APIs
+sesuai existing framework.
+
+Conceptual endpoints:
+
+POST /aws/connections
+GET /aws/connections
+GET /aws/connections/:id
+POST /aws/connections/:id/verify
+POST /aws/connections/:id/revoke
+
+POST /aws/accounts/:id/discovery
+GET /aws/accounts/:id/discovery
+GET /aws/accounts/:id/resources
+
+Gunakan route convention existing.
+
+Jangan membuat duplicate API layer.
+
+============================================================
+51. API SECURITY
+============================================================
+
+Semua endpoint AWS:
+
+authenticated
++
+organization scoped
++
+permission checked.
+
+Tidak ada public AWS endpoint.
+
+============================================================
+52. INPUT VALIDATION
+============================================================
+
+Validate:
+
+connection configuration
+account ID
+role ARN
+region
+resource identifiers
+pagination
+idempotency key
+
+Reject malformed input sebelum AWS call.
+
+Gunakan existing validation library.
+
+Jangan install validator baru
+jika existing stack sudah memiliki validator.
+
+============================================================
+53. SSRF / URL SAFETY
+============================================================
+
+Jika connection model menerima endpoint/custom URL:
+
+STRICTLY validate.
+
+Default:
+
+gunakan official AWS endpoints.
+
+Jangan menerima arbitrary endpoint
+yang dapat menjadi SSRF vector.
+
+Jika custom endpoint tidak dibutuhkan:
+
+jangan expose field tersebut.
+
+============================================================
+54. DATABASE MIGRATION
+============================================================
+
+Jika schema berubah:
+
+buat Prisma migration.
+
+JANGAN:
+
+reset database.
+
+JANGAN:
+
+delete existing migration.
+
+JANGAN:
+
+force destructive migration.
+
+Migration harus backward-safe
+sesuai environment existing.
+
+============================================================
+55. SEED DATA
+============================================================
+
+Jangan memasukkan real AWS credentials.
+
+Development seed boleh membuat:
+
+fake organization
+fake AWS connection
+fake account
+fake resources
+
+dengan penanda:
+
+DEMO/TEST
+
+Jangan membuat seed yang terlihat
+seperti verified production AWS account.
+
+============================================================
+56. CAPABILITY REGISTRY
+============================================================
+
+Update capability registry HONESTLY.
+
+Contoh:
+
+AWS_CONNECTION_FOUNDATION = VERIFIED
+AWS_ACCOUNT_IDENTITY = VERIFIED
+AWS_REGION_DISCOVERY = VERIFIED
+AWS_RESOURCE_INVENTORY_EC2 = VERIFIED
+AWS_RESOURCE_INVENTORY_S3 = VERIFIED
+AWS_RESOURCE_INVENTORY_IAM = VERIFIED
+
+Jika hanya mock:
+
+AWS_*_LIVE = NOT VERIFIED
+
+Jangan klaim production integration
+tanpa real evidence.
+
+============================================================
+57. DOCUMENTATION
+============================================================
+
+Update existing docs.
+
+Dokumentasikan:
+
+AWS architecture
+credential strategy
+connection lifecycle
+account discovery
+region discovery
+resource normalization
+IAM least privilege
+cross-account strategy
+security boundaries
+retry strategy
+job lifecycle
+audit events
+known limitations
+external verification requirements
+
+Suggested:
+
+DOC/AWS-INTEGRATION.md
+DOC/AWS-DISCOVERY.md
+
+Jika file equivalent sudah ada:
+UPDATE, jangan duplicate.
+
+============================================================
+58. TEST MATRIX
+============================================================
+
+AWS CONNECTION:
+
+[ ] create
+[ ] invalid credential
+[ ] valid credential
+[ ] duplicate account prevention
+[ ] revoke
+[ ] revoked connection denied
+[ ] credential rotation
+
+ACCOUNT:
+
+[ ] STS identity
+[ ] account ID verification
+[ ] organization isolation
+[ ] multi-account isolation
+
+REGION:
+
+[ ] discovery
+[ ] multiple regions
+[ ] pagination where applicable
+[ ] partial region failure
+
+RESOURCE:
+
+[ ] EC2 discovery
+[ ] S3 discovery
+[ ] IAM discovery
+[ ] pagination
+[ ] normalization
+[ ] duplicate prevention
+[ ] stale resource handling
+
+SECURITY:
+
+[ ] no secret logs
+[ ] no credential frontend exposure
+[ ] no cross-tenant access
+[ ] no cross-account leakage
+[ ] permission denial
+[ ] read-only guarantee
+
+JOBS:
+
+[ ] enqueue
+[ ] idempotency
+[ ] concurrent discovery
+[ ] completed
+[ ] partial
+[ ] failed
+
+AUDIT:
+
+[ ] connection created
+[ ] verification
+[ ] revoke
+[ ] discovery
+[ ] failure
+[ ] correlation ID
+
+============================================================
+59. READ-ONLY SECURITY TEST
+============================================================
+
+Test/inspect AWS client implementation.
+
+Confirm discovery invokes only read operations.
+
+There must be NO:
+
+Create
+Delete
+Update
+Modify
+Terminate
+Reboot
+Start
+Stop
+
+AWS mutation operation
+inside discovery implementation.
+
+============================================================
+60. PERFORMANCE
+============================================================
+
+Discovery harus bounded.
+
+Jangan melakukan:
+
+N × M unnecessary API calls.
+
+Reuse:
+
+clients
+region data
+connection context
+
+Gunakan pagination efficiently.
+
+Jangan parallelize tanpa batas.
+
+AWS throttling harus diperhatikan.
+
+============================================================
+61. FAILURE RECOVERY
+============================================================
+
+Jika discovery berhenti di tengah:
+
+run status tidak boleh tetap RUNNING selamanya.
+
+Implement controlled failure state.
+
+Future retry harus dapat dijalankan
+tanpa merusak inventory.
+
+============================================================
+62. NO SECURITY FINDINGS YET
+============================================================
+
+PENTING:
+
+Prompt 04 hanya menemukan dan menormalisasi
+AWS resources.
+
+JANGAN menentukan:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+JANGAN membuat vulnerability finding.
+
+JANGAN membuat compliance score.
+
+JANGAN membuat recommendation.
+
+Inventory adalah INPUT
+untuk security analysis pada prompt berikutnya.
+
+============================================================
+63. NO REPORT ENGINE
+============================================================
+
+Jangan membuat professional report.
+
+Jangan membuat PDF.
+
+Jangan membuat dashboard.
+
+Prompt 04 menghasilkan:
+
+verified AWS inventory foundation.
+
+============================================================
+64. CREDIT EFFICIENCY
+============================================================
+
+WAJIB:
+
+Inspect existing code first.
+
+Reuse existing abstractions.
+
+Reuse existing Prisma patterns.
+
+Reuse existing queue.
+
+Reuse existing auth.
+
+Reuse existing RBAC.
+
+Reuse existing audit.
+
+Reuse existing error model.
+
+Reuse existing test utilities.
+
+Do not refactor unrelated modules.
+
+Do not install unnecessary packages.
+
+Do not redesign frontend.
+
+Do not build future modules.
+
+DO NOT REBUILD PROJECT.
+
+============================================================
+65. DEFINITION OF DONE
+============================================================
+
+Prompt 04 COMPLETE hanya jika:
+
+[ ] AWS SDK v3 correctly integrated
+[ ] AWS connection entity exists
+[ ] organization scoped
+[ ] credential abstraction exists
+[ ] credential secrets protected
+[ ] AWS identity verification works
+[ ] account ID verified from STS
+[ ] duplicate account prevented
+[ ] multi-account supported
+[ ] region discovery works
+[ ] partial region failure handled
+[ ] EC2 inventory foundation works
+[ ] S3 inventory foundation works
+[ ] IAM inventory foundation works
+[ ] pagination works
+[ ] normalized resource model works
+[ ] repeated discovery idempotent
+[ ] stale resource lifecycle exists
+[ ] discovery run persisted
+[ ] discovery job integrated
+[ ] job idempotency works
+[ ] retry bounded
+[ ] transient errors classified
+[ ] connection revoke works
+[ ] credential rotation foundation works
+[ ] tenant isolation tested
+[ ] account isolation tested
+[ ] read-only guarantee verified
+[ ] audit integrated
+[ ] correlation ID propagated
+[ ] no secrets logged
+[ ] API authorization enforced
+[ ] database constraints enforced
+[ ] Prisma migration valid
+[ ] unit tests pass
+[ ] integration tests pass where available
+[ ] typecheck passes
+[ ] lint passes if configured
+[ ] build passes
+[ ] runtime smoke test passes
+[ ] documentation updated
+[ ] capability registry updated honestly
+[ ] no scanner/findings/report/billing scope creep
+
+============================================================
+66. RELEASE GATE
+============================================================
+
+PASS
+
+if all core tests pass.
+
+PASS WITH EXTERNAL VERIFICATION
+
+if implementation is complete but
+real AWS credentials/integration cannot
+be verified in current environment.
+
+FAIL
+
+if:
+
+- tenant isolation fails
+- credential leak exists
+- discovery performs mutation
+- account identity is not verified
+- duplicate inventory occurs
+- revoked connection remains usable
+- build/test fails
+
+Never hide FAIL.
+
+============================================================
+67. FINAL VERIFICATION
+============================================================
+
+Run:
+
+node --version
+
+Prisma validation.
+
+Migration validation.
+
+Focused AWS connection tests.
+
+Account verification tests.
+
+Tenant isolation tests.
+
+Multi-account tests.
+
+Resource inventory tests.
+
+Pagination tests.
+
+Idempotency tests.
+
+Read-only security tests.
+
+Audit tests.
+
+Full test suite.
+
+Typecheck.
+
+Lint if configured.
+
+Build.
+
+Start application.
+
+Smoke test.
+
+Inspect git diff.
+
+Confirm only intended files changed.
+
+============================================================
+68. FINAL REPORT
+============================================================
+
+Return:
+
+A. STATUS
+PASS / PASS WITH EXTERNAL VERIFICATION / FAIL
+
+B. IMPLEMENTED
+
+Exact AWS capabilities completed.
+
+C. AWS CONNECTION
+
+Actual verified state.
+
+D. ACCOUNT DISCOVERY
+
+Actual verified state.
+
+E. RESOURCE INVENTORY
+
+Exact services implemented.
+
+F. SECURITY
+
+Credential + tenant + read-only protections.
+
+G. TEST EVIDENCE
+
+Exact result.
+
+H. EXTERNAL VERIFICATION
+
+AWS credential/provider requirements.
+
+I. FILES CHANGED
+
+Exact files and reason.
+
+J. DATABASE MIGRATION
+
+Migration name/status.
+
+K. CAPABILITY REGISTRY
+
+Verified capabilities only.
+
+L. DEFERRED
+
+Only future modules.
+
+M. KNOWN LIMITATIONS
+
+Explicitly state.
+
+N. NEXT MASTER PROMPT
+
+Identify dependency only.
+
+DO NOT execute next prompt.
+
+============================================================
+69. FINAL STOP CONDITION
+============================================================
+
+When Definition of Done passes:
+
+STOP.
+
+DO NOT implement:
+
+security scanner
+finding engine
+control evaluation
+AWS remediation
+report engine
+billing
+AI
+dashboard redesign
+
+Wait for next instruction.
+
+============================================================
+FINAL EXECUTION COMMAND
+============================================================
+
+EXECUTE MASTER PROMPT 04 NOW.
+
+CONTINUE FROM EXISTING JOBEN CODEBASE.
+
+DO NOT REBUILD.
+
+NODE.JS 24.
+POSTGRESQL.
+PRISMA.
+TYPESCRIPT.
+
+AWS INTEGRATION MUST BE REAL.
+AWS ACCOUNT IDENTITY MUST BE VERIFIED.
+DISCOVERY MUST BE READ-ONLY.
+TENANT ISOLATION MUST BE SERVER-SIDE.
+MULTI-ACCOUNT MUST BE SUPPORTED.
+DISCOVERY MUST BE IDEMPOTENT.
+CREDENTIALS MUST NEVER LEAK.
+AUDIT MUST BE DURABLE.
+CAPABILITY STATUS MUST BE HONEST.
+
+INSPECT
+→ IMPLEMENT
+→ MIGRATE
+→ TEST
+→ VERIFY
+→ DOCUMENT
+→ UPDATE CAPABILITY REGISTRY
+→ STOP.
