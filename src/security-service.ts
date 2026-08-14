@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { AppError } from "./errors.js";
-import { requirePermission, type Permission } from "./authorization.js";
+import { requirePermission, systemAuthorizationContext, type Permission } from "./authorization.js";
 import { AuditEventRepository, customerContext, systemContext, type OrganizationContext } from "./persistence.js";
 import { EvidenceService } from "./evidence-service.js";
 import {
@@ -20,6 +20,7 @@ import {
   ROOT_MFA_PROVIDER,
   ROOT_MFA_SCHEMA_VERSION,
   ROOT_MFA_CONTROL_CONTRACT,
+  ROOT_MFA_PROVIDER_SOURCE_REVISION,
   rootMfaResourceKey,
 } from "./root-mfa-control.js";
 import {
@@ -981,7 +982,18 @@ export class SecurityAnalysisService {
       this.db.securityFinding.count({ where: { organizationId, severity: "CRITICAL", status: { in: ["OPEN", "ACKNOWLEDGED"] } } }),
       this.db.securityScanRun.findFirst({ where: { organizationId }, orderBy: { createdAt: "desc" }, select: { id: true, status: true, createdAt: true, finishedAt: true, correlationId: true } }),
       this.db.evidence.findFirst({ where: { organizationId }, orderBy: { createdAt: "desc" }, select: { id: true, integrityStatus: true, collectedAt: true, contentHash: true } }),
-      this.db.controlResult.findMany({ where: { organizationId }, orderBy: { observedAt: "desc" }, distinct: ["checkId", "resourceKey"], take: 1_000, select: { checkId: true, status: true, observedAt: true, message: true, evidenceId: true, resourceKey: true } }),
+      this.db.controlResult.findMany({
+        where: { organizationId },
+        orderBy: { observedAt: "desc" },
+        distinct: ["checkId", "resourceKey"],
+        take: 1_000,
+        select: {
+          id: true, checkId: true, checkVersion: true, evaluatorVersion: true, provider: true,
+          operation: true, status: true, observedAt: true, message: true, evidenceId: true,
+          evidenceHash: true, canonicalizationVersion: true, resourceKey: true, coverage: true,
+          dataQuality: true, errorCode: true, remediation: true, provenance: true,
+        },
+      }),
     ]);
     const latestByControl = new Map<string, typeof controls[number]>();
     for (const control of controls) {
@@ -993,6 +1005,12 @@ export class SecurityAnalysisService {
       organizationId,
       source: "backend",
       accounts,
+      accountList: await this.db.awsAccount.findMany({
+        where: { organizationId, status: "ACTIVE" },
+        orderBy: { createdAt: "asc" },
+        take: 100,
+        select: { id: true, awsAccountId: true, alias: true, status: true, lastVerifiedAt: true },
+      }),
       findings: { open: openFindings, critical: criticalFindings },
       controls: {
         evaluated: currentControls.length,
@@ -1008,6 +1026,48 @@ export class SecurityAnalysisService {
         posture: currentControls.length === 0 ? "NOT_EVALUATED" : currentControls.some((control) => control.status === "ERROR") ? "INSUFFICIENT_EVIDENCE" : currentControls.some((control) => control.status === "FAIL") ? "ACTION_REQUIRED" : "OBSERVED",
         complianceScore: "NOT_CALCULATED",
       },
+    };
+  }
+
+  async search(auth: SecurityAuthorization, query: string) {
+    requireSecurityPermission(auth, "organization.read");
+    const normalized = query.trim();
+    if (normalized.length < 2) return { query: normalized, results: [] };
+    const whereText = { contains: normalized, mode: "insensitive" as const };
+    const [accounts, controls, findings, scans] = await Promise.all([
+      this.db.awsAccount.findMany({
+        where: { organizationId: auth.organizationId, OR: [{ awsAccountId: whereText }, { alias: whereText }] },
+        orderBy: { createdAt: "asc" },
+        take: 8,
+        select: { id: true, awsAccountId: true, alias: true, status: true },
+      }),
+      this.db.controlResult.findMany({
+        where: { organizationId: auth.organizationId, OR: [{ checkId: whereText }, { resourceKey: whereText }] },
+        orderBy: { observedAt: "desc" },
+        take: 8,
+        select: { id: true, checkId: true, status: true, resourceKey: true, observedAt: true },
+      }),
+      this.db.securityFinding.findMany({
+        where: { organizationId: auth.organizationId, OR: [{ ruleId: whereText }, { title: whereText }, { resourceId: whereText }] },
+        orderBy: { lastDetectedAt: "desc" },
+        take: 8,
+        select: { id: true, ruleId: true, title: true, severity: true, status: true },
+      }),
+      this.db.securityScanRun.findMany({
+        where: { organizationId: auth.organizationId, OR: [{ id: whereText }, { correlationId: whereText }] },
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        select: { id: true, status: true, createdAt: true },
+      }),
+    ]);
+    return {
+      query: normalized,
+      results: [
+        ...accounts.map((account) => ({ type: "account", id: account.id, label: account.alias ?? account.awsAccountId, detail: account.status })),
+        ...controls.map((control) => ({ type: "control", id: control.id, label: control.checkId, detail: `${control.status} · ${control.resourceKey}` })),
+        ...findings.map((finding) => ({ type: "finding", id: finding.id, label: finding.title, detail: `${finding.severity} · ${finding.status}` })),
+        ...scans.map((scan) => ({ type: "scan", id: scan.id, label: `Scan ${scan.id.slice(0, 8)}`, detail: scan.status })),
+      ],
     };
   }
 
@@ -1145,12 +1205,16 @@ export class SecurityAnalysisService {
       metadata: { checkId: ROOT_MFA_CHECK_ID, checkVersion: ROOT_MFA_CHECK_VERSION, operation: ROOT_MFA_OPERATION, permission: ROOT_MFA_PERMISSION },
     });
 
+    let stage: "provider" | "evidence" | "evaluation" = "provider";
     try {
       const connection = await this.db.awsConnection.findFirst({ where: { id: account.connectionId, organizationId: auth.organizationId } });
       if (!connection) throw new AppError("NOT_FOUND", "AWS connection not found.");
       const client = this.controlClients?.create(connection);
       if (!client?.getRootMfaObservation) throw new AppError("NOT_IMPLEMENTED", "The configured AWS provider does not expose the root MFA contract.");
       const observation = await client.getRootMfaObservation(account.awsAccountId);
+      if (observation.accountId !== account.awsAccountId) {
+        throw new AppError("SCHEMA_ERROR", "AWS root MFA observation account identity did not match the verified AWS account.");
+      }
       await audit.append(auth.context, {
         actorUserId: auth.actorUserId,
         action: "CONTROL_PROVIDER_REQUEST_COMPLETED",
@@ -1161,7 +1225,8 @@ export class SecurityAnalysisService {
         correlationId: scan.correlationId,
         metadata: { provider: ROOT_MFA_PROVIDER, operation: ROOT_MFA_OPERATION, observedAt: observation.observedAt.toISOString() },
       });
-      const committed = await this.evidence.commitForScan(systemContext(auth.actorUserId), {
+      stage = "evidence";
+      const committed = await this.evidence.commitForScan(systemAuthorizationContext(auth.actorUserId), {
         sourceIntegrationId: connection.id,
         scanRunId: scan.id,
         scanCheckOutcomeId: outcome.id,
@@ -1188,10 +1253,11 @@ export class SecurityAnalysisService {
         }],
         correlationId: scan.correlationId,
       });
-      const verified = await this.evidence.verify({ auth: systemContext(auth.actorUserId), correlationId: scan.correlationId }, committed.id);
+      const verified = await this.evidence.verify({ auth: systemAuthorizationContext(auth.actorUserId), correlationId: scan.correlationId }, committed.id);
       if (verified.integrityStatus !== "VALID") throw new AppError("INTEGRITY_ERROR", "Root MFA evidence failed integrity verification.");
+      stage = "evaluation";
       const evaluation = evaluateRootMfa(observation);
-      const result = await this.persistRootMfaResult(auth, scan, outcome.id, attempt, evaluation, verified.id, verified.contentHash, observation.observedAt);
+      const result = await this.persistRootMfaResult(auth, scan, account.awsAccountId, outcome.id, attempt, evaluation, verified.id, verified.contentHash, observation.observedAt);
       await audit.append(auth.context, {
         actorUserId: auth.actorUserId,
         action: "CONTROL_EVALUATED",
@@ -1205,13 +1271,20 @@ export class SecurityAnalysisService {
       });
       return { status: evaluation.status, resourceKey };
     } catch (error) {
-      const errorCode = error instanceof AppError && error.code === "SCHEMA_ERROR"
+      const awsCategory = classifyAwsError(error instanceof AppError ? error.cause : error);
+      const errorCode = stage === "evidence" && !(error instanceof AppError && error.code === "INTEGRITY_ERROR")
+        ? "EVIDENCE_COMMIT_FAILED"
+        : error instanceof AppError && error.code === "SCHEMA_ERROR"
         ? "SCHEMA_DRIFT"
         : error instanceof AppError && error.code === "INTEGRITY_ERROR"
           ? "EVIDENCE_INTEGRITY_FAILED"
           : error instanceof AppError && error.code === "NOT_IMPLEMENTED"
             ? "PROVIDER_CONTRACT_UNAVAILABLE"
-            : classifyAwsError(error instanceof AppError ? error.cause : error);
+            : awsCategory === "ACCESS_DENIED"
+              ? "PERMISSION_DENIED"
+              : awsCategory === "AWS_SERVICE_ERROR"
+                ? "TRANSIENT_AWS_FAILURE"
+                : awsCategory;
       const finishedAt = new Date();
       await this.db.scanCheckOutcome.update({ where: { id: outcome.id }, data: { status: "ERROR", errorClass: errorCode, errorMessage: "Root MFA control could not obtain verified evidence.", finishedAt, durationMs: Math.max(0, finishedAt.getTime() - startedAt.getTime()) } });
       await this.db.controlResult.create({
@@ -1232,7 +1305,7 @@ export class SecurityAnalysisService {
           dataQuality: "UNAVAILABLE",
           message: "Root MFA control has insufficient verified evidence.",
           errorCode,
-          provenance: { organizationId: auth.organizationId, awsAccountId: account.awsAccountId, scanRunId: scan.id, scanCheckOutcomeId: outcome.id, checkId: ROOT_MFA_CHECK_ID, checkVersion: ROOT_MFA_CHECK_VERSION, evaluatorVersion: ROOT_MFA_EVALUATOR_VERSION, observedAt: finishedAt.toISOString(), provider: ROOT_MFA_PROVIDER, operation: ROOT_MFA_OPERATION, coverage: ROOT_MFA_COVERAGE, dataQuality: "UNAVAILABLE", sourceRevision: ROOT_MFA_CONTROL_CONTRACT.fixtureReference },
+          provenance: { organizationId: auth.organizationId, awsAccountId: account.awsAccountId, scanRunId: scan.id, scanCheckOutcomeId: outcome.id, checkId: ROOT_MFA_CHECK_ID, checkVersion: ROOT_MFA_CHECK_VERSION, evaluatorVersion: ROOT_MFA_EVALUATOR_VERSION, observedAt: finishedAt.toISOString(), provider: ROOT_MFA_PROVIDER, operation: ROOT_MFA_OPERATION, coverage: ROOT_MFA_COVERAGE, dataQuality: "UNAVAILABLE", sourceRevision: ROOT_MFA_PROVIDER_SOURCE_REVISION },
           soc2Mapping: ROOT_MFA_CONTROL_CONTRACT.soc2Mapping,
           attempt,
           correlationId: scan.correlationId,
@@ -1256,6 +1329,7 @@ export class SecurityAnalysisService {
   private async persistRootMfaResult(
     auth: SecurityAuthorization,
     scan: SecurityScanRunRecord,
+    awsAccountId: string,
     outcomeId: string,
     attempt: number,
     evaluation: ReturnType<typeof evaluateRootMfa>,
@@ -1284,9 +1358,9 @@ export class SecurityAnalysisService {
         ...(evaluation.errorCode ? { errorCode: evaluation.errorCode } : {}),
         evidenceHash,
         canonicalizationVersion: "JCS-1",
-        provenance: {
-          organizationId: auth.organizationId,
-          awsAccountId: scan.accountId,
+          provenance: {
+            organizationId: auth.organizationId,
+            awsAccountId,
           scanRunId: scan.id,
           scanCheckOutcomeId: outcomeId,
           checkId: ROOT_MFA_CHECK_ID,
@@ -1300,7 +1374,7 @@ export class SecurityAnalysisService {
           evidenceId,
           evidenceHash,
           canonicalizationVersion: "JCS-1",
-          sourceRevision: ROOT_MFA_CONTROL_CONTRACT.fixtureReference,
+          sourceRevision: ROOT_MFA_PROVIDER_SOURCE_REVISION,
         },
         ...(evaluation.remediation ? { remediation: evaluation.remediation } : {}),
         soc2Mapping: evaluation.soc2Mapping,

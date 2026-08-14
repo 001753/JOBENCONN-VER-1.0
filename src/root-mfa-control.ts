@@ -10,6 +10,8 @@ export const ROOT_MFA_RESOURCE_TYPE = "AWS:IAM:root-account";
 export const ROOT_MFA_OPERATION = "IAM.GetAccountSummary";
 export const ROOT_MFA_PERMISSION = "iam:GetAccountSummary";
 export const ROOT_MFA_COVERAGE = "AWS account root MFA state from IAM account summary";
+export const ROOT_MFA_PROVIDER_SOURCE = "AWS IAM API Reference — GetAccountSummary";
+export const ROOT_MFA_PROVIDER_SOURCE_REVISION = "https://docs.aws.amazon.com/IAM/latest/APIReference/API_GetAccountSummary.html";
 
 export const ROOT_MFA_REMEDIATION = {
   title: "Enable multi-factor authentication for the AWS root user",
@@ -35,6 +37,8 @@ export const ROOT_MFA_CONTROL_CONTRACT = {
   service: "IAM",
   operation: ROOT_MFA_OPERATION,
   requiredPermissions: [ROOT_MFA_PERMISSION],
+  providerSource: ROOT_MFA_PROVIDER_SOURCE,
+  providerSourceRevision: ROOT_MFA_PROVIDER_SOURCE_REVISION,
   inputSchema: "AwsRootMfaObservation",
   outputSchema: "RootMfaEvaluation",
   resourceType: ROOT_MFA_RESOURCE_TYPE,

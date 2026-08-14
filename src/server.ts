@@ -14,6 +14,7 @@ import { AwsService, customerAwsAuthorization } from "./aws-service.js";
 import { SecurityAnalysisService, customerSecurityAuthorization } from "./security-service.js";
 import { EvidenceService } from "./evidence-service.js";
 import { DefaultAwsReadOnlyDiscoveryClientFactory } from "./aws-service.js";
+import { ROOT_MFA_CONTROL_CONTRACT } from "./root-mfa-control.js";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -501,18 +502,19 @@ async function route(
     return;
   }
 
+  if (path === "/search" && method === "GET") {
+    const auth = await securityAuthorization("findings.read");
+    const query = new URL(request.url ?? "/", "http://joben.local").searchParams.get("q") ?? "";
+    if (query.length > 120) throw new AppError("VALIDATION_ERROR", "q must be 120 characters or fewer.");
+    sendJson(response, 200, await security.search(auth, query));
+    return;
+  }
+
   if (path === "/security/controls" && method === "GET") {
     const auth = await securityAuthorization("findings.read");
     sendJson(response, 200, {
       controls: [{
-        checkId: "AWS-IAM-ROOT-MFA",
-        checkVersion: "1",
-        provider: "aws",
-        service: "IAM",
-        operation: "IAM.GetAccountSummary",
-        resourceType: "AWS:IAM:root-account",
-        requiredPermissions: ["iam:GetAccountSummary"],
-        evaluatorVersion: "1",
+        ...ROOT_MFA_CONTROL_CONTRACT,
         statusStates: ["PASS", "FAIL", "ERROR", "NOT_APPLICABLE"],
         source: "src/root-mfa-control.ts",
       }],
