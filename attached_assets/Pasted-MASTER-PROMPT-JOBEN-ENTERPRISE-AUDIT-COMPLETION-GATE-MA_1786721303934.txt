@@ -1,0 +1,1053 @@
+MASTER PROMPT — JOBEN ENTERPRISE
+AUDIT + COMPLETION GATE MASTER PROMPT 01–08
+
+MODE:
+PRECISION-FIRST
+REAL-WORK ONLY
+NO-HALLUCINATION
+EVIDENCE-FIRST
+CREDIT-EFFICIENT
+NO SCOPE CREEP
+
+RUNTIME:
+Node.js 24
+TypeScript
+PostgreSQL
+Prisma ORM
+
+============================================================
+0. MISSION
+============================================================
+
+Lakukan AUDIT TEKNIS MENYELURUH terhadap hasil implementasi
+MASTER PROMPT 01 sampai MASTER PROMPT 08.
+
+TUJUAN UTAMA:
+
+1. Menentukan secara faktual apa yang benar-benar sudah dibangun.
+2. Menentukan apa yang benar-benar sudah diverifikasi.
+3. Menentukan apa yang masih partial/incomplete.
+4. Menutup GAP yang masih berada dalam scope Prompt 01–08.
+5. Membuktikan Gate A dan Gate B sesuai PRD.
+6. Tidak membangun fitur Prompt 09+.
+7. Tidak mengubah arsitektur yang sudah benar tanpa alasan teknis.
+8. Tidak membuat fake data/capability hanya agar test/UI terlihat sukses.
+
+HASIL AKHIR YANG DIINGINKAN:
+
+MASTER PROMPT 01–08
+=
+COMPLETED SECARA TEKNIS SEJAUH SCOPE PRD
++
+TERVERIFIKASI
++
+REAL WORK
++
+NO FAKE CAPABILITY
++
+TRACEABLE
++
+READY TO ENTER PROMPT 09
+
+JANGAN mengklaim 100% jika bukti belum tersedia.
+
+============================================================
+1. SOURCE OF TRUTH — WAJIB
+============================================================
+
+Gunakan sumber berikut dalam urutan prioritas:
+
+1. PRD JOBEN ENTERPRISE yang tersedia di repository/DOC.
+2. Roadmap / phase prompting JOBEN.
+3. Dependency DAG/module map jika tersedia.
+4. Definition of Ready / Definition of Done.
+5. Gate A / Gate B requirements.
+6. Capability Registry.
+7. Existing implementation.
+8. Existing tests.
+9. Existing migration.
+10. Existing proof/dossier/runbook.
+11. Git diff/history bila tersedia.
+
+JANGAN mengarang requirement.
+
+Jika ada konflik antar dokumen:
+
+- identifikasi;
+- jangan diam-diam memilih;
+- dokumentasikan;
+- pilih keputusan konservatif bila pekerjaan harus dilanjutkan;
+- simpan decision/RFC.
+
+============================================================
+2. IMPORTANT TRUTH RULE
+============================================================
+
+BEDAKAN SECARA KERAS:
+
+A. CODE EXISTS
+B. UNIT TEST VERIFIED
+C. INTEGRATION VERIFIED
+D. DATABASE VERIFIED
+E. PROVIDER/SANDBOX VERIFIED
+F. LIVE VERIFIED
+G. GATE PASSED
+
+Jangan menyamakan:
+
+route exists
+=
+capability live.
+
+Jangan menyamakan:
+
+mock/fake AWS client
+=
+AWS live verification.
+
+Jangan menyamakan:
+
+fixture/seed
+=
+customer data.
+
+Jangan menyamakan:
+
+HTTP 200
+=
+business success.
+
+Jangan menyamakan:
+
+dashboard tampil
+=
+scan berhasil.
+
+Jangan menyamakan:
+
+finding exists
+=
+finding valid.
+
+Jangan menyamakan:
+
+PASS
+=
+compliant.
+
+Capability hanya boleh LIVE_VERIFIED jika acceptance gate
+PRD benar-benar terpenuhi.
+
+============================================================
+3. FIRST ACTION — AUDIT ONLY
+============================================================
+
+SEBELUM mengubah kode:
+
+INSPECT.
+
+Jangan langsung coding.
+
+Audit minimal:
+
+- repository tree
+- package.json
+- lockfile
+- Node runtime
+- TypeScript
+- Prisma schema
+- migrations
+- database connectivity
+- server
+- auth/session
+- authorization
+- organization/tenant boundary
+- audit
+- AWS adapter
+- credential flow
+- provider verification
+- scan orchestration
+- queue
+- worker
+- lock
+- lease
+- heartbeat
+- retry
+- cancel
+- replay
+- scan events
+- findings
+- security analysis
+- evidence
+- evidence hash
+- canonicalization
+- redaction
+- immutability
+- retention
+- legal hold
+- evidence verification
+- HTTP evidence access
+- control implementation
+- AWS check registry
+- dashboard/API projection
+- capability registry
+- documentation
+- tests
+- proof dossier
+- runbooks
+
+Jangan membaca file yang sama berkali-kali jika sudah diketahui.
+
+Gunakan hasil audit untuk menentukan GAP.
+
+============================================================
+4. MASTER 01–08 TRACEABILITY MATRIX
+============================================================
+
+Buat matrix internal:
+
+PROMPT
+REQUIREMENT
+IMPLEMENTATION
+TEST
+INTEGRATION
+LIVE PROOF
+CAPABILITY STATE
+GATE
+STATUS
+GAP
+REQUIRED ACTION
+
+Gunakan status:
+
+NOT_IMPLEMENTED
+PARTIAL
+IMPLEMENTED
+TEST_VERIFIED
+INTEGRATION_VERIFIED
+LIVE_VERIFIED
+BLOCKED
+DEFERRED
+
+Jangan gunakan "COMPLETED" hanya karena file/function tersedia.
+
+============================================================
+5. MASTER PROMPT 01 AUDIT
+============================================================
+
+Verifikasi:
+
+- repository baseline
+- architecture baseline
+- environment contract
+- Node 24 compatibility
+- deterministic install
+- build
+- test
+- typecheck
+- startup
+- health/live
+- health/ready
+- configuration validation
+- secret handling
+- logging
+- redaction
+- error boundary
+- documentation
+- capability registry
+- source-of-truth declaration
+- no fake capability
+
+Gate:
+
+P0 FOUNDATION BASELINE
+
+Jika sudah benar:
+JANGAN rebuild.
+
+Jika ada gap:
+fix hanya gap Prompt 01.
+
+============================================================
+6. MASTER PROMPT 02 AUDIT
+============================================================
+
+Verifikasi PostgreSQL/Prisma:
+
+- schema
+- migrations
+- migration ordering
+- migration idempotency
+- repository boundary
+- transaction boundary
+- organization persistence
+- user persistence
+- relevant Prompt 02 models
+- constraints
+- unique indexes
+- foreign keys
+- cascade/restrict behavior
+- nullability
+- timestamps
+- concurrency safety
+- rollback/migration safety
+- integration tests
+
+WAJIB memastikan database nyata digunakan pada integration test
+jika environment database tersedia.
+
+Jangan menerima:
+
+"Prisma generate berhasil"
+
+sebagai persistence proof.
+
+Gate:
+
+PERSISTENCE TEST.
+
+============================================================
+7. MASTER PROMPT 03 AUDIT
+============================================================
+
+Verifikasi:
+
+- identity
+- session/authentication
+- organization
+- membership
+- RBAC
+- authorization
+- permission model
+- audit
+- tenant-scoped repositories
+- route authorization
+- object-level authorization
+- anti-IDOR
+- cross-tenant read
+- cross-tenant write
+- cross-tenant export
+- membership boundary
+- owner/member distinction
+- audit trail
+
+WAJIB negative-test minimal:
+
+Organization A mencoba membaca data Organization B.
+
+Organization A mencoba mengubah data Organization B.
+
+Organization A mencoba menggunakan ID object milik B.
+
+Semua harus ditolak.
+
+Tidak cukup hanya menguji UI.
+
+Gate:
+
+ANTI-IDOR / TENANT ISOLATION.
+
+============================================================
+8. MASTER PROMPT 04 AUDIT
+============================================================
+
+Verifikasi security/operational foundation:
+
+- secrets handling
+- credential redaction
+- secure errors
+- request validation
+- rate limiting/abuse boundary jika diwajibkan
+- encryption boundary
+- AWS credential handling
+- credential revocation
+- provider connection validation
+- audit security-sensitive actions
+- operational readiness foundation
+- backup/restore baseline bila scope Prompt 04
+- environment separation
+
+PENTING:
+
+Jangan menyatakan AWS LIVE VERIFIED jika hanya fake client,
+mock client, fixture, atau unit test.
+
+Jika AWS credential live tidak tersedia:
+
+STATE:
+VERIFICATION_REQUIRED / LIVE_PROOF_PENDING
+
+Jangan mengarang.
+
+============================================================
+9. MASTER PROMPT 05 AUDIT
+============================================================
+
+Verifikasi provider/AWS/security analysis:
+
+- provider contract
+- AWS adapter
+- credential flow
+- account identity validation
+- region handling
+- pagination
+- normalization
+- idempotency
+- tenant/account isolation
+- read-only boundary
+- revoke behavior
+- security rule registry
+- rule version
+- findings persistence
+- scan linkage
+- PASS/FAIL/NOT_APPLICABLE
+- INSUFFICIENT_EVIDENCE
+- provider error handling
+- permission failure
+- evidence linkage
+
+PENTING:
+
+PERMISSION ERROR
+TIDAK BOLEH MENJADI PASS.
+
+INSUFFICIENT_EVIDENCE
+TIDAK BOLEH MENJADI PASS.
+
+PROVIDER ERROR
+TIDAK BOLEH MENJADI PASS.
+
+STALE DATA
+TIDAK BOLEH MENJADI PASS.
+
+DEMO DATA
+TIDAK BOLEH MENJADI LIVE STATUS.
+
+============================================================
+10. MASTER PROMPT 06 AUDIT
+============================================================
+
+Verifikasi seluruh scan lifecycle.
+
+Minimal:
+
+CREATE
+→ QUEUED
+→ CLAIMED
+→ RUNNING
+→ COMPLETED / FAILED / CANCELLED / DEAD_LETTER
+
+Verifikasi:
+
+- ScanRun
+- ScanJob
+- ScanCheckOutcome
+- ScanEvent
+- queue
+- worker
+- atomic claim
+- lock
+- lease
+- heartbeat
+- lease recovery
+- retry
+- retry classification
+- max attempts
+- dead-letter
+- cancel
+- replay
+- idempotency
+- concurrent requests
+- concurrent workers
+- tenant isolation
+- RBAC
+- audit event
+- cursor pagination
+- history
+- metrics
+- schedule persistence/trigger jika memang termasuk Prompt 06
+- failure state
+- recovery state
+
+WAJIB test:
+
+1. dua concurrent scan request
+2. hanya satu logical ScanRun
+3. dua worker mencoba claim job yang sama
+4. hanya satu worker berhasil
+5. worker mati setelah claim
+6. lease recovery
+7. retry
+8. non-retryable 401/403
+9. dead-letter
+10. cancel
+11. replay operator-only
+12. tenant isolation
+13. MEMBER unauthorized action
+
+Jangan hanya test state transition secara in-memory.
+
+Gunakan PostgreSQL integration bila environment tersedia.
+
+Gate:
+
+REAL SCAN LIFECYCLE.
+
+============================================================
+11. MASTER PROMPT 07 AUDIT
+============================================================
+
+Verifikasi Evidence Vault:
+
+- Evidence schema
+- ObservedFact jika diwajibkan
+- canonicalization
+- canonical JSON version
+- hash
+- content address
+- provenance
+- source provider
+- observedAt
+- resource identity
+- rule/check version
+- scan linkage
+- redaction
+- secret suppression
+- immutability
+- supersession
+- retention
+- legal hold
+- deletion restrictions
+- integrity verification
+- integrity failure state
+- object storage abstraction
+- metadata/content separation
+- tenant isolation
+- RBAC
+- audit
+- evidence HTTP access
+- commitForScan
+- evidence failure cannot silently produce scan success
+
+WAJIB negative test:
+
+- modified content
+- modified metadata
+- invalid hash
+- unauthorized tenant
+- unauthorized role
+- expired evidence
+- legal hold
+- successor/supersession
+- secret canary
+
+Expected:
+
+Evidence integrity failure
+MUST be visible.
+
+Evidence failure
+MUST NOT silently become PASS.
+
+Secret
+MUST NOT appear in API response/log.
+
+Gate:
+
+EVIDENCE INTEGRITY.
+
+============================================================
+12. MASTER PROMPT 08 — FIRST REAL AWS CONTROLS
+============================================================
+
+INI ADALAH CHECK TERPENTING.
+
+Jangan hanya audit UI.
+
+Verifikasi FIRST REAL AWS VERTICAL SLICE.
+
+Target:
+
+AWS account
+→ credential verification
+→ scan
+→ real AWS check
+→ provider observation
+→ ObservedFact/Evidence
+→ deterministic evaluator
+→ Finding
+→ Control status/projection
+→ API
+→ dashboard
+
+Minimal satu control harus benar-benar bisa dibuktikan
+end-to-end sesuai PRD Gate B.
+
+WAJIB menentukan:
+
+- check ID
+- check name
+- version
+- provider
+- required permission
+- resource scope
+- input observation
+- evaluator
+- output
+- evidence ID
+- evidence hash
+- observedAt
+- coverage
+- freshness
+- error behavior
+- permission denied behavior
+- insufficient evidence behavior
+- deterministic result
+
+Jangan membuat check yang hanya:
+
+mock → PASS → dashboard.
+
+Itu DILARANG.
+
+============================================================
+13. GATE B — HARD REQUIREMENT
+============================================================
+
+Gate B hanya boleh dinyatakan PASSED jika:
+
+[ ] AWS integration verified
+[ ] credential/account identity verified
+[ ] minimal satu real AWS check berjalan
+[ ] check memiliki permission matrix
+[ ] provider observation nyata
+[ ] evidence immutable
+[ ] evidence hash dapat diverifikasi ulang
+[ ] deterministic finding
+[ ] control projection
+[ ] freshness
+[ ] coverage
+[ ] permission negative test
+[ ] cross-tenant negative test
+[ ] provider error tidak menjadi PASS
+[ ] incomplete evidence tidak menjadi PASS
+[ ] stale evidence tidak menjadi PASS
+[ ] dashboard tidak membuat data sendiri
+[ ] dashboard hanya projection dari server state
+[ ] result dapat dibandingkan manual pada controlled test account
+[ ] proof record tersedia
+
+Jika salah satu belum terpenuhi:
+
+GATE B = NOT PASSED.
+
+Jangan menaikkannya menjadi PASS hanya karena UI terlihat bagus.
+
+============================================================
+14. DASHBOARD AUDIT
+============================================================
+
+Prompt 08 boleh memiliki UI/dashboard.
+
+Namun audit:
+
+SERVER = SOURCE OF TRUTH.
+
+UI = PROJECTION.
+
+Dashboard tidak boleh:
+
+- membuat fake score
+- membuat fake finding
+- membuat fake scan
+- membuat fake compliance
+- menganggap empty sebagai zero-risk
+- menganggap provider error sebagai healthy
+- menganggap no-data sebagai compliant
+
+State wajib membedakan:
+
+NO_DATA
+NOT_SCANNED
+SCANNING
+COMPLETED
+PARTIAL
+FAILED
+STALE
+INSUFFICIENT_EVIDENCE
+PROVIDER_ERROR
+VERIFICATION_REQUIRED
+
+Jika backend belum memiliki data:
+UI harus mengatakan data belum tersedia.
+
+============================================================
+15. REAL DATA VS DEMO DATA
+============================================================
+
+Cari seluruh:
+
+mock
+fixture
+seed
+fake
+demo
+sample
+placeholder
+hardcoded score
+hardcoded finding
+hardcoded compliance
+
+Audit apakah digunakan sebagai:
+
+TEST ONLY
+DEMO ONLY
+LIVE
+
+Jika LIVE:
+hapus/fix.
+
+Jika TEST:
+beri boundary jelas.
+
+Tidak boleh ada ambiguity.
+
+============================================================
+16. TEST PYRAMID
+============================================================
+
+Jalankan hanya test yang relevan setelah perubahan.
+
+Minimal:
+
+- unit
+- integration
+- database integration
+- API
+- security
+- tenant isolation
+- lifecycle
+- evidence integrity
+- provider contract
+- real provider/sandbox jika credential tersedia
+- E2E vertical slice jika Gate B dapat diuji
+
+Jangan menjalankan test yang sama berkali-kali tanpa perubahan.
+
+============================================================
+17. DATABASE VERIFICATION
+============================================================
+
+Jika DATABASE_URL tersedia:
+
+gunakan database nyata.
+
+Verifikasi:
+
+prisma migrate status
+schema consistency
+migration chain
+integration tests
+
+Jangan reset database production.
+
+Gunakan non-destructive migration.
+
+Jika DATABASE_URL tidak tersedia:
+
+Jangan mengklaim database integration verified.
+
+Dokumentasikan:
+
+DATABASE_VERIFICATION_REQUIRED.
+
+============================================================
+18. AWS VERIFICATION
+============================================================
+
+Jika AWS credentials tersedia dan authorized:
+
+jalankan controlled verification.
+
+Gunakan read-only capability.
+
+Verifikasi:
+
+STS identity
+account ID
+region
+required permission
+target check
+actual observation
+evidence
+finding
+control projection
+
+Jika AWS credentials tidak tersedia:
+
+JANGAN membuat fake live proof.
+
+Status:
+
+AWS_LIVE_VERIFICATION_REQUIRED.
+
+============================================================
+19. PERFORMANCE / CONCURRENCY
+============================================================
+
+Tidak perlu melakukan load test besar.
+
+Tetapi minimal lakukan deterministic concurrency test untuk:
+
+- scan idempotency
+- queue claim
+- lease recovery
+- evidence commit
+- tenant authorization
+
+Catat hasil.
+
+============================================================
+20. DOCUMENTATION / PROOF
+============================================================
+
+Update hanya jika memang diperlukan:
+
+DOC/CAPABILITY-REGISTRY.md
+DOC/ARCHITECTURE-BASELINE.md
+DOC/PRD-TRACEABILITY.md
+DOC/GATE-A-PROOF.md
+DOC/GATE-B-PROOF.md
+DOC/KNOWN-LIMITATIONS.md
+DOC/RUNBOOKS/*
+DOC/DECISIONS.md
+
+Dokumentasi harus mengatakan:
+
+IMPLEMENTED
+VERIFIED
+LIVE_VERIFIED
+PARTIAL
+VERIFICATION_REQUIRED
+NOT_IMPLEMENTED
+
+sesuai bukti nyata.
+
+============================================================
+21. NO FAKE COMPLETION
+============================================================
+
+DILARANG:
+
+- mengubah status menjadi complete tanpa proof
+- menghapus failing test
+- melemahkan assertion
+- skip test hanya agar hijau
+- fake AWS
+- fake finding
+- fake evidence
+- fake compliance
+- fake score
+- fake dashboard metric
+- swallow exception
+- fallback error → PASS
+- fallback stale → PASS
+- fallback missing evidence → PASS
+
+Jika sesuatu belum dapat dibuktikan:
+
+TULIS BELUM TERBUKTI.
+
+============================================================
+22. CREDIT EFFICIENCY
+============================================================
+
+HEMAT KREDIT.
+
+Gunakan:
+
+INSPECT
+→ GAP MATRIX
+→ PATCH MINIMAL
+→ TARGETED TEST
+→ FINAL TEST
+→ VERIFY
+
+Jangan:
+
+- membaca seluruh repository berkali-kali
+- reinstall dependency jika sudah ada
+- membuat abstraction baru tanpa kebutuhan
+- rewrite modul yang sudah benar
+- membangun Prompt 09+
+- mengulang test tanpa perubahan
+- membuat UI tambahan yang tidak diperlukan untuk Gate B
+
+Prioritas:
+
+1. correctness
+2. security
+3. tenant isolation
+4. evidence integrity
+5. real lifecycle
+6. real AWS proof
+7. documentation
+
+============================================================
+23. STRICT OUT OF SCOPE
+============================================================
+
+JANGAN membangun:
+
+- Prompt 09 Decision & Control System penuh
+- Prompt 10 Remediation penuh
+- Prompt 11 Dashboard expansion penuh
+- Prompt 12 Reports
+- Prompt 13 GitHub provider
+- Prompt 14 Billing/AI
+- Prompt 15 Governance
+- Prompt 16 Hackathon hardening
+
+Jika dependency future ditemukan:
+
+DOCUMENT + DEFER.
+
+Jangan implementasikan.
+
+============================================================
+24. FINAL GATE MATRIX
+============================================================
+
+Pada akhir audit tampilkan:
+
+PROMPT 01 — PASS / PARTIAL / BLOCKED
+PROMPT 02 — PASS / PARTIAL / BLOCKED
+PROMPT 03 — PASS / PARTIAL / BLOCKED
+PROMPT 04 — PASS / PARTIAL / BLOCKED
+PROMPT 05 — PASS / PARTIAL / BLOCKED
+PROMPT 06 — PASS / PARTIAL / BLOCKED
+PROMPT 07 — PASS / PARTIAL / BLOCKED
+PROMPT 08 — PASS / PARTIAL / BLOCKED
+
+Kemudian:
+
+GATE A — PASS / NOT PASSED
+GATE B — PASS / NOT PASSED
+
+============================================================
+25. DEFINITION OF DONE AUDIT 01–08
+============================================================
+
+Audit ini hanya boleh dinyatakan COMPLETED jika:
+
+1. seluruh gap Prompt 01–08 yang actionable sudah ditutup;
+2. build lulus;
+3. typecheck lulus;
+4. relevant test suite lulus;
+5. database integration lulus jika DATABASE_URL tersedia;
+6. auth/RBAC negative test lulus;
+7. cross-tenant negative test lulus;
+8. scan lifecycle lulus;
+9. concurrency/lock/lease test lulus;
+10. retry/dead-letter/cancel/replay lulus;
+11. evidence integrity lulus;
+12. evidence immutability lulus;
+13. redaction test lulus;
+14. provider contract lulus;
+15. first real AWS control lulus jika live credentials tersedia;
+16. dashboard tidak menggunakan fake source of truth;
+17. capability registry sesuai kondisi nyata;
+18. proof dossier tersedia;
+19. known limitations dicatat;
+20. tidak ada Prompt 09+ yang dibangun.
+
+Jika AWS live credentials tidak tersedia:
+
+Prompt 08 TIDAK boleh diberi status LIVE_VERIFIED.
+
+Sebagai gantinya:
+
+PROMPT 08:
+IMPLEMENTED / TEST_VERIFIED
++
+LIVE_VERIFICATION_REQUIRED
+
+============================================================
+26. FINAL REPORT
+============================================================
+
+Berikan laporan:
+
+A. EXECUTIVE RESULT
+
+B. PROMPT 01 STATUS
+
+C. PROMPT 02 STATUS
+
+D. PROMPT 03 STATUS
+
+E. PROMPT 04 STATUS
+
+F. PROMPT 05 STATUS
+
+G. PROMPT 06 STATUS
+
+H. PROMPT 07 STATUS
+
+I. PROMPT 08 STATUS
+
+J. GATE A
+
+K. GATE B
+
+L. ACTUAL GAPS FOUND
+
+M. FILES CHANGED
+
+N. TESTS EXECUTED
+
+O. DATABASE PROOF
+
+P. AWS PROOF
+
+Q. EVIDENCE PROOF
+
+R. SECURITY PROOF
+
+S. REMAINING LIMITATIONS
+
+T. DEFERRED TO PROMPT 09+
+
+Jangan gunakan bahasa pemasaran.
+
+Jangan mengatakan "production ready"
+jika gate belum membuktikannya.
+
+Jangan mengatakan "100% complete"
+jika ada item yang belum terverifikasi.
+
+============================================================
+FINAL RULE
+============================================================
+
+LEBIH BAIK MELAPORKAN:
+
+"BELUM TERBUKTI"
+
+daripada:
+
+"SUDAH SELESAI"
+
+tanpa evidence.
+
+JOBEN adalah evidence-first system.
+
+TRUTH > APPEARANCE.
+PROOF > CLAIM.
+SERVER > UI.
+REAL PROVIDER > MOCK.
+EVIDENCE > SCORE.
+SECURITY > CONVENIENCE.
+CORRECTNESS > CREDIT SAVING.
+
+SELESAI.

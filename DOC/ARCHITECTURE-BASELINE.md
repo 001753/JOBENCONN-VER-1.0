@@ -1,17 +1,26 @@
 # JOBEN Architecture Baseline
 
-Status: **P0 foundation and Prompt 03 identity/access-control core implemented; external identity verification remains required.**
+Status: **Prompts 01–08 are implemented to their tested boundaries; external provider and live-object-storage verification remains required.**
 
 ## Runtime authority
 
 - **Server** is the authority for request handling and capability status.
 - **PostgreSQL** is the durable relational store. Prisma migrations and typed persistence repositories provide the database boundary introduced by Master Prompt 02.
-- **External providers** will be observation sources behind adapters; no provider is connected in this baseline.
-- **UI** is not present and must not become a source of truth.
+- **External providers** are observation sources behind adapters. The AWS adapter
+  is implemented and read-only, but no live provider proof is claimed in this
+  repository state.
+- **PostgreSQL-backed server APIs** are the source of truth for scans, findings,
+  controls, and evidence. The dashboard is a projection and must not create
+  metrics or findings.
 
 ## Layers and boundaries
 
-The baseline owns runtime foundation concerns: configuration, HTTP boundary, error taxonomy, structured logging, health endpoints, and the migration-first persistence foundation.
+The baseline owns runtime foundation concerns: configuration, HTTP boundary,
+error taxonomy, structured logging, health endpoints, and the migration-first
+persistence foundation. Prompt 03 identity/access control, Prompt 04 AWS
+discovery, Prompt 05 analysis, Prompt 06 orchestration, Prompt 07 evidence, and
+Prompt 08 root-MFA control are implemented behind their documented acceptance
+boundaries.
 
 The following conceptual boundaries are reserved without fake implementations:
 
