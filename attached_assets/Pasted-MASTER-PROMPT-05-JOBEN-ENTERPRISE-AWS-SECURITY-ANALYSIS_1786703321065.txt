@@ -1,0 +1,1384 @@
+MASTER PROMPT 05 — JOBEN ENTERPRISE
+AWS SECURITY ANALYSIS + FINDINGS ENGINE
+
+MODE:
+CONTINUE EXISTING REPOSITORY
+NO REBUILD
+NO DUPLICATION
+NO SCOPE CREEP
+CREDIT-EFFICIENT
+REAL WORK
+FULL POWER
+PRODUCTION-GRADE
+COMPLETED
+RESPONSIVE
+SECURE
+
+============================================================
+0. ABSOLUTE CONTINUATION RULE
+============================================================
+
+INI ADALAH MASTER PROMPT 05.
+
+PROMPT 01–04 DAN 04.A SUDAH MENJADI BASELINE.
+
+JANGAN membuat project baru.
+
+JANGAN membuat arsitektur baru dari nol.
+
+JANGAN mengulang:
+
+- authentication
+- session
+- RBAC
+- tenant isolation
+- AWS connection
+- AWS credential provider
+- AWS account discovery
+- AWS region discovery
+- AWS resource discovery
+- AWS inventory
+- AWS adapter
+- AWS read-only boundary
+- AWS discovery infrastructure
+- existing Prisma models
+- existing migration
+- existing test infrastructure
+
+Gunakan hasil Prompt 04/04.A sebagai INPUT.
+
+Pola kerja WAJIB:
+
+INSPECT
+→ IDENTIFY EXISTING CAPABILITIES
+→ IDENTIFY ONLY REAL GAPS
+→ IMPLEMENT
+→ TEST
+→ VERIFY
+→ DOCUMENT
+→ STOP
+
+Jika sebuah capability sudah complete:
+
+SKIP.
+
+JANGAN REWRITE.
+
+============================================================
+1. OBJECTIVE
+============================================================
+
+Bangun CORE SECURITY ANALYSIS ENGINE JOBEN.
+
+Tujuan:
+
+AWS resources yang sudah dikumpulkan oleh
+Prompt 04/04.A harus dapat dianalisis secara
+deterministik untuk menemukan kondisi keamanan
+yang berisiko.
+
+Pipeline:
+
+AWS Inventory
+→ Normalization
+→ Security Rules
+→ Evaluation
+→ Findings
+→ Severity
+→ Evidence
+→ Deduplication
+→ Status/Lifecycle
+→ Tenant-scoped API
+
+PROMPT 05 BUKAN:
+
+- AWS connector baru
+- remediation engine
+- auto-fix
+- billing
+- AI copilot
+- dashboard kompleks
+- notification system
+- compliance certification
+
+Fokus hanya:
+
+SECURITY ANALYSIS + FINDINGS CORE.
+
+============================================================
+2. SOURCE OF TRUTH
+============================================================
+
+SECURITY ENGINE HARUS MEMBACA
+DATA INVENTORY YANG SUDAH ADA.
+
+JANGAN melakukan AWS API call
+untuk setiap rule jika data inventory
+yang dibutuhkan sudah tersedia.
+
+Ini penting untuk:
+
+- performance
+- deterministic analysis
+- credit efficiency
+- testability
+- reproducibility
+
+Flow:
+
+inventory snapshot
+→ rule evaluator
+→ findings.
+
+Jika sebuah rule membutuhkan data
+yang belum dikumpulkan Prompt 04:
+
+JANGAN membuat workaround palsu.
+
+Catat sebagai:
+
+INSUFFICIENT_EVIDENCE
+
+atau equivalent existing state.
+
+============================================================
+3. SECURITY RULE ENGINE
+============================================================
+
+Bangun rule engine modular.
+
+Jangan hardcode seluruh logic
+dalam satu service besar.
+
+Minimal abstraction:
+
+SecurityRule
+
+dengan konsep:
+
+ruleId
+name
+description
+severity
+resourceTypes
+evaluate()
+evidence builder
+recommendation
+
+Gunakan TypeScript strict typing.
+
+Setiap rule harus deterministic.
+
+Input sama:
+
+→ output sama.
+
+============================================================
+4. RULE REGISTRY
+============================================================
+
+Buat registry terpusat.
+
+Contoh:
+
+RULES = [
+  ...
+]
+
+Tetapi gunakan naming convention
+existing project jika sudah tersedia.
+
+Rule registry harus memungkinkan:
+
+enable/disable
+version
+severity
+resource type applicability
+
+Tanpa membuat dynamic code execution.
+
+============================================================
+5. INITIAL SECURITY RULE SET
+============================================================
+
+Implementasikan RULE SET minimum
+yang benar-benar dapat dibuktikan
+dari inventory yang tersedia.
+
+JANGAN membuat rule yang membutuhkan
+data yang tidak dikumpulkan.
+
+Prioritaskan:
+
+A. Public exposure
+B. Encryption posture
+C. IAM/security posture
+D. Network exposure
+E. Resource configuration
+F. Logging/monitoring posture
+G. Dangerous/default configuration
+
+Jika inventory saat ini hanya memiliki
+metadata tertentu:
+
+buat rule berdasarkan metadata tersebut.
+
+JANGAN mengarang evidence.
+
+============================================================
+6. RULE QUALITY PRINCIPLE
+============================================================
+
+Rule TIDAK BOLEH mengatakan:
+
+"resource tidak aman"
+
+hanya karena data tidak tersedia.
+
+Bedakan:
+
+FAIL
+PASS
+NOT_APPLICABLE
+INSUFFICIENT_EVIDENCE
+
+Contoh:
+
+Encryption field tidak tersedia:
+
+BUKAN FAIL.
+
+Status:
+
+INSUFFICIENT_EVIDENCE.
+
+============================================================
+7. FINDING MODEL
+============================================================
+
+Setiap finding minimal memiliki:
+
+id
+organizationId
+ruleId
+ruleVersion
+resourceId
+resourceType
+awsAccountId
+region
+severity
+status
+title
+description
+evidence
+recommendation
+firstDetectedAt
+lastDetectedAt
+resolvedAt
+createdAt
+updatedAt
+
+Gunakan nama field existing convention
+jika schema sudah menentukan terminology.
+
+JANGAN membuat duplicate model.
+
+============================================================
+8. TENANT ISOLATION
+============================================================
+
+Semua findings WAJIB organization scoped.
+
+Organization A:
+
+tidak boleh membaca
+tidak boleh membuat query
+tidak boleh resolve
+tidak boleh acknowledge
+
+finding milik Organization B.
+
+Test secara langsung melalui API
+dan service layer.
+
+Jangan mengandalkan frontend.
+
+============================================================
+9. FINDING IDENTITY
+============================================================
+
+Finding tidak boleh duplicate setiap kali
+scanner dijalankan.
+
+Canonical identity harus mempertimbangkan:
+
+organization
+rule
+rule version
+account
+region
+resource
+
+Gunakan database uniqueness
+sebagai protection terakhir.
+
+Contoh konseptual:
+
+organizationId
++
+ruleId
++
+resourceId
+
+Jika existing schema memiliki
+identity berbeda yang lebih tepat,
+pertahankan existing architecture.
+
+============================================================
+10. DEDUPLICATION
+============================================================
+
+Scenario:
+
+scan #1
+→ 10 findings
+
+scan #2
+→ resource sama
+→ rule sama
+
+Expected:
+
+TETAP 10 findings aktif.
+
+Jangan membuat 20.
+
+Update:
+
+lastDetectedAt
+
+dan evidence jika berubah.
+
+============================================================
+11. FINDING LIFECYCLE
+============================================================
+
+Minimal lifecycle:
+
+OPEN
+ACKNOWLEDGED
+RESOLVED
+
+Jika existing project memiliki
+terminology berbeda:
+
+reuse existing convention.
+
+Jangan membuat state yang tumpang tindih.
+
+============================================================
+12. AUTOMATIC RESOLUTION
+============================================================
+
+Jika finding sebelumnya OPEN:
+
+scan berikutnya
+→ resource tidak lagi melanggar
+
+Maka:
+
+RESOLVED
+
+dan set:
+
+resolvedAt.
+
+Jangan delete finding.
+
+Historical evidence harus tetap tersedia.
+
+============================================================
+13. REOPEN
+============================================================
+
+Jika:
+
+finding RESOLVED
+
+kemudian scan berikutnya
+menemukan violation yang sama:
+
+REOPEN.
+
+Jangan membuat duplicate finding
+jika canonical identity masih sama.
+
+============================================================
+14. ACKNOWLEDGED SEMANTICS
+============================================================
+
+ACKNOWLEDGED berarti:
+
+user mengetahui finding.
+
+Jika violation tetap ada:
+
+finding tetap aktif.
+
+Jangan otomatis menganggap
+ACKNOWLEDGED = RESOLVED.
+
+============================================================
+15. SEVERITY
+============================================================
+
+Gunakan severity terstruktur:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+INFO
+
+Jangan gunakan angka random.
+
+Jika severity rule sudah ditentukan:
+
+ikuti rule.
+
+Jangan membuat scoring AI.
+
+============================================================
+16. SEVERITY PRINCIPLE
+============================================================
+
+Severity harus deterministic.
+
+Contoh faktor:
+
+internet exposure
+privilege impact
+data sensitivity
+encryption state
+resource type
+
+Tetapi:
+
+JANGAN membuat formula kompleks
+jika evidence belum mendukung.
+
+Rule severity harus dapat dijelaskan.
+
+============================================================
+17. EVIDENCE
+============================================================
+
+Setiap finding harus mempunyai
+machine-readable evidence.
+
+Contoh:
+
+{
+  "field": "publicAccess",
+  "actual": true,
+  "expected": false
+}
+
+JANGAN menyimpan:
+
+raw AWS credentials
+authorization headers
+secret values
+session tokens
+
+Evidence harus berasal dari
+inventory yang sebenarnya.
+
+============================================================
+18. EVIDENCE PROVENANCE
+============================================================
+
+Setiap finding harus dapat ditelusuri:
+
+finding
+→ rule
+→ resource
+→ discovery run
+
+Jika schema existing mendukung:
+
+simpan discoveryRunId.
+
+Tujuannya:
+
+user dapat mengetahui
+mengapa finding dibuat.
+
+============================================================
+19. RULE VERSIONING
+============================================================
+
+Rule harus memiliki version.
+
+Contoh:
+
+JOBEN-AWS-001
+version 1
+
+Jika logic rule berubah di masa depan,
+historical finding tetap dapat
+menunjukkan versi rule saat dibuat.
+
+============================================================
+20. RULE IDENTIFIERS
+============================================================
+
+Gunakan identifier stabil.
+
+Format contoh:
+
+AWS-SEC-001
+AWS-SEC-002
+AWS-SEC-003
+
+Jangan menggunakan random UUID
+sebagai rule identity.
+
+UUID tetap boleh digunakan
+untuk finding database identity.
+
+============================================================
+21. INITIAL RULE DOCUMENTATION
+============================================================
+
+Setiap rule harus mendokumentasikan:
+
+Rule ID
+Rule Version
+Name
+Purpose
+Applicable Resource
+Expected State
+Failure Condition
+Severity
+Evidence
+Recommendation
+Limitations
+
+Dokumentasi harus konsisten
+dengan implementation.
+
+============================================================
+22. SCAN ENGINE
+============================================================
+
+Bangun service:
+
+Inventory
+→ Rules
+→ Evaluation
+→ Finding Upsert
+→ Resolution
+
+Gunakan existing discovery architecture.
+
+Jangan membuat AWS discovery ulang.
+
+============================================================
+23. SCAN RUN
+============================================================
+
+Scan harus memiliki lifecycle.
+
+Minimal:
+
+QUEUED
+RUNNING
+COMPLETED
+PARTIAL
+FAILED
+
+Jika project sudah mempunyai
+DiscoveryRun abstraction:
+
+gunakan dan extend hanya bila benar-benar sesuai.
+
+Jangan membuat dua sistem job
+yang melakukan hal sama.
+
+============================================================
+24. IDEMPOTENT SCAN
+============================================================
+
+Scan yang sama dua kali:
+
+tidak boleh membuat duplicate findings.
+
+Test:
+
+scan A
+scan A
+scan A
+
+Expected:
+
+stable result.
+
+============================================================
+25. PARTIAL ANALYSIS
+============================================================
+
+Jika:
+
+100 resources tersedia
+80 berhasil dianalisis
+20 tidak memiliki evidence cukup
+
+jangan klaim:
+
+100% analyzed.
+
+Hasil:
+
+PARTIAL
+
+dengan metrics:
+
+total
+evaluated
+insufficientEvidence
+failed
+
+============================================================
+26. RULE FAILURE ISOLATION
+============================================================
+
+Jika satu rule mengalami error:
+
+Rule A gagal
+Rule B berhasil
+Rule C berhasil
+
+Jangan membuat seluruh scan
+kehilangan hasil B/C.
+
+Record rule-level failure.
+
+Overall scan:
+
+PARTIAL
+
+bila sesuai kondisi.
+
+============================================================
+27. ERROR HANDLING
+============================================================
+
+Bedakan:
+
+INVALID_INVENTORY
+INSUFFICIENT_EVIDENCE
+RULE_EXECUTION_ERROR
+DATABASE_ERROR
+AUTHORIZATION_ERROR
+
+Jangan expose internal stack
+ke client.
+
+============================================================
+28. DATABASE DESIGN
+============================================================
+
+Review existing Prisma schema.
+
+Tambahkan hanya model/index/constraint
+yang benar-benar diperlukan.
+
+JANGAN duplicate:
+
+resource
+account
+region
+discovery run
+organization
+
+Pastikan index untuk query:
+
+organizationId
+status
+severity
+resourceId
+ruleId
+createdAt
+
+Hanya tambahkan jika memang diperlukan
+berdasarkan schema aktual.
+
+============================================================
+29. DATABASE MIGRATION
+============================================================
+
+Jika schema berubah:
+
+buat satu migration yang coherent.
+
+Jangan reset database.
+
+Jangan mengubah migration lama
+yang sudah applied.
+
+Gunakan Prisma migration.
+
+============================================================
+30. TRANSACTION SAFETY
+============================================================
+
+Finding upsert + lifecycle transition
+harus konsisten.
+
+Gunakan transaction
+untuk DB changes yang harus atomic.
+
+Jangan menjalankan rule evaluation
+di dalam transaction panjang.
+
+Pattern:
+
+read inventory
+→ evaluate
+→ short DB transaction.
+
+============================================================
+31. PERFORMANCE
+============================================================
+
+JANGAN:
+
+N+1 query
+per resource
+per rule.
+
+Gunakan batching.
+
+Contoh:
+
+load inventory sekali
+→ evaluate in memory
+→ batch persistence.
+
+Tetapi jangan mengorbankan
+tenant isolation.
+
+============================================================
+32. LARGE INVENTORY
+============================================================
+
+Engine harus mampu memproses
+inventory lebih besar dari test fixture.
+
+Jangan hardcode:
+
+10 resources
+20 resources
+100 resources.
+
+Gunakan pagination/chunking
+jika existing architecture membutuhkannya.
+
+============================================================
+33. API
+============================================================
+
+Implement API minimal untuk:
+
+GET findings
+GET finding detail
+GET scan status/history
+POST/run security scan
+
+Jika endpoint sudah tersedia:
+
+REUSE.
+
+Jangan duplicate endpoint.
+
+Semua endpoint:
+
+authenticate
+→ authorize
+→ tenant scope.
+
+============================================================
+34. FINDING FILTER
+============================================================
+
+GET findings minimal mendukung:
+
+severity
+status
+ruleId
+resourceType
+awsAccountId
+region
+
+Gunakan pagination.
+
+Jangan mengambil seluruh findings
+ke memory jika data besar.
+
+============================================================
+35. FINDING SORT
+============================================================
+
+Default sort:
+
+severity priority
++
+latest detection.
+
+Jika existing API convention berbeda,
+pertahankan convention.
+
+============================================================
+36. FINDING DETAIL
+============================================================
+
+Detail finding harus memberikan:
+
+title
+severity
+status
+rule
+resource
+account
+region
+evidence
+recommendation
+first detected
+last detected
+resolution status
+provenance
+
+Tidak boleh menampilkan secrets.
+
+============================================================
+37. ACKNOWLEDGE API
+============================================================
+
+Jika lifecycle API belum tersedia,
+implement:
+
+POST/PATCH acknowledge
+
+Tetapi hanya jika scope Prompt 05
+memang membutuhkan lifecycle.
+
+Authorization wajib.
+
+Audit wajib.
+
+============================================================
+38. RESOLVE API
+============================================================
+
+Manual resolve hanya boleh jika
+existing product requirement mengizinkan.
+
+Jika implemented:
+
+authorization
++
+audit
++
+reason
+
+Tetapi manual resolve TIDAK boleh
+menghapus finding.
+
+============================================================
+39. AUDIT
+============================================================
+
+Audit minimal:
+
+SCAN_STARTED
+SCAN_COMPLETED
+SCAN_FAILED
+FINDING_CREATED
+FINDING_REOPENED
+FINDING_ACKNOWLEDGED
+FINDING_RESOLVED
+
+Gunakan existing audit infrastructure.
+
+Jangan membuat audit system kedua.
+
+============================================================
+40. SECURITY
+============================================================
+
+Search seluruh implementation
+untuk memastikan:
+
+- tenant scope
+- authorization
+- input validation
+- safe errors
+- secret redaction
+- SQL safety
+- Prisma parameterization
+- no arbitrary rule execution
+
+============================================================
+41. RULE ENGINE SECURITY
+============================================================
+
+RULE ENGINE tidak boleh menjalankan:
+
+eval()
+new Function()
+dynamic code dari database
+user-supplied executable logic.
+
+Rule definition harus berasal
+dari trusted application code.
+
+============================================================
+42. API AUTHORIZATION MATRIX
+============================================================
+
+Minimal:
+
+findings.read
+findings.run
+findings.acknowledge
+findings.resolve
+
+Gunakan existing permission model.
+
+Jika permission belum ada:
+
+tambahkan melalui existing RBAC system.
+
+Jangan membuat auth system baru.
+
+============================================================
+43. TEST STRATEGY
+============================================================
+
+WAJIB test:
+
+1. rule PASS
+2. rule FAIL
+3. rule NOT_APPLICABLE
+4. insufficient evidence
+5. severity
+6. evidence
+7. finding creation
+8. finding deduplication
+9. finding update
+10. finding resolution
+11. finding reopen
+12. acknowledged lifecycle
+13. scan idempotency
+14. partial analysis
+15. rule failure isolation
+16. tenant isolation
+17. authorization
+18. pagination
+19. filters
+20. audit
+21. no secret leakage
+
+============================================================
+44. TEST FIXTURES
+============================================================
+
+Gunakan existing test infrastructure.
+
+Buat fixture AWS inventory minimal:
+
+Organization A
+Account A
+Region A
+
+Resource:
+
+- secure resource
+- insecure resource
+- insufficient-evidence resource
+
+Jika fixture sudah ada:
+
+reuse.
+
+============================================================
+45. NO FAKE SUCCESS
+============================================================
+
+Test boleh menggunakan fixture/fake inventory.
+
+Tetapi production capability
+harus jelas berbeda.
+
+JANGAN menulis:
+
+AWS scanned successfully
+
+jika sebenarnya hanya fixture.
+
+Production:
+
+scan inventory snapshot.
+
+============================================================
+46. OBSERVABILITY
+============================================================
+
+Metrics minimal:
+
+scan count
+scan duration
+resources analyzed
+rules evaluated
+findings created
+findings resolved
+insufficient evidence
+rule errors
+
+Gunakan existing logging/metrics architecture.
+
+Jangan menambah observability platform baru
+jika belum diperlukan.
+
+============================================================
+47. FRONTEND SCOPE
+============================================================
+
+JANGAN membangun dashboard besar.
+
+Jika UI existing membutuhkan
+minimal findings view agar core system
+dapat diverifikasi:
+
+implement hanya UI minimal:
+
+- list findings
+- severity
+- status
+- resource
+- detail
+- filters
+
+Harus responsive.
+
+Jangan membuat landing page baru.
+
+Jangan redesign aplikasi.
+
+============================================================
+48. REAL-WORK REQUIREMENT
+============================================================
+
+CORE SYSTEM harus benar-benar:
+
+database backed
+tenant scoped
+rule evaluated
+finding persisted
+finding lifecycle persisted
+API protected
+audit backed
+test verified.
+
+Tidak boleh sekadar:
+
+mock UI
+static JSON
+hardcoded findings
+fake scanner
+demo-only buttons.
+
+============================================================
+49. CREDIT EFFICIENCY
+============================================================
+
+SANGAT PENTING.
+
+SEBELUM CODING:
+
+inspect existing code.
+
+Jika sudah ada:
+
+reuse.
+
+JANGAN:
+
+- rebuild AWS
+- rebuild auth
+- rebuild RBAC
+- rebuild Prisma setup
+- rebuild test framework
+- rebuild audit
+- rebuild job system
+- rebuild inventory
+
+Kerjakan hanya:
+
+SECURITY ANALYSIS
++
+FINDINGS
+
+yang belum ada.
+
+Batasi perubahan pada file
+yang relevan.
+
+Jangan melakukan unrelated refactor.
+
+============================================================
+50. DEFINITION OF DONE
+============================================================
+
+Prompt 05 COMPLETE apabila:
+
+[ ] Security rule engine real
+[ ] Rule registry real
+[ ] Initial rule set implemented
+[ ] Rules deterministic
+[ ] PASS/FAIL/NOT_APPLICABLE/INSUFFICIENT_EVIDENCE
+[ ] Findings persisted PostgreSQL
+[ ] Finding identity deterministic
+[ ] Deduplication bekerja
+[ ] Lifecycle bekerja
+[ ] Reopen bekerja
+[ ] Evidence tersimpan
+[ ] Provenance tersedia
+[ ] Rule version tersedia
+[ ] Scan run bekerja
+[ ] Scan idempotent
+[ ] Partial analysis aman
+[ ] Rule failure isolation
+[ ] Tenant isolation
+[ ] RBAC authorization
+[ ] Finding API
+[ ] Pagination
+[ ] Filtering
+[ ] Audit
+[ ] Secret redaction
+[ ] Database constraints
+[ ] Performance tidak N+1
+[ ] Tests lulus
+[ ] Build lulus
+[ ] Migration valid
+[ ] Documentation diperbarui
+[ ] UI minimal responsive jika diperlukan
+[ ] Tidak ada fake production success
+
+============================================================
+51. ACCEPTANCE TEST
+============================================================
+
+Scenario:
+
+Organization A
+→ AWS inventory
+→ 10 resources
+
+Run scan.
+
+Expected:
+
+scan RUNNING
+→ COMPLETED/PARTIAL
+
+Findings persisted.
+
+Run scan kedua.
+
+Expected:
+
+NO duplicate findings.
+
+Modify inventory state.
+
+Run scan ketiga.
+
+Expected:
+
+previous violation resolved/reopened
+sesuai state aktual.
+
+Organization B mencoba
+membaca finding A.
+
+Expected:
+
+DENIED.
+
+User tanpa findings.run
+mencoba menjalankan scan.
+
+Expected:
+
+DENIED.
+
+============================================================
+52. BUILD & VERIFY
+============================================================
+
+Run existing commands.
+
+At minimum:
+
+npx prisma generate
+npx prisma validate
+npx prisma migrate status
+npm test
+npm run build
+
+Jika tersedia:
+
+npm run typecheck
+npm run lint
+
+Jangan menambah dependency
+kecuali benar-benar diperlukan.
+
+============================================================
+53. DOCUMENTATION
+============================================================
+
+Update existing docs.
+
+Dokumentasikan:
+
+security engine
+rule architecture
+rule registry
+finding lifecycle
+severity
+evidence
+provenance
+scan lifecycle
+tenant isolation
+API
+known limitations
+
+Jangan membuat dokumentasi
+yang menyatakan compliance/certification
+yang belum diverifikasi.
+
+============================================================
+54. CAPABILITY REGISTRY
+============================================================
+
+Register capability secara jujur:
+
+AWS_SECURITY_RULE_ENGINE
+AWS_SECURITY_FINDINGS
+AWS_FINDING_LIFECYCLE
+AWS_SECURITY_SCAN
+AWS_FINDING_PROVENANCE
+
+Status harus berdasarkan
+actual test/code evidence.
+
+Tidak boleh:
+
+VERIFIED_LIVE
+
+jika hanya unit test.
+
+Gunakan terminology existing registry.
+
+============================================================
+55. FINAL REPORT
+============================================================
+
+Setelah implementasi selesai,
+berikan laporan:
+
+A. STATUS
+COMPLETE / PARTIAL / FAIL
+
+B. EXISTING COMPONENTS REUSED
+
+C. ACTUAL CHANGES
+
+D. SECURITY RULES IMPLEMENTED
+
+E. FINDING ENGINE STATUS
+
+F. DATABASE/MIGRATION STATUS
+
+G. API STATUS
+
+H. TENANT ISOLATION TEST
+
+I. RBAC TEST
+
+J. TEST RESULTS
+
+K. BUILD RESULTS
+
+L. PERFORMANCE NOTES
+
+M. DOCUMENTATION UPDATED
+
+N. CAPABILITY REGISTRY
+
+O. REMAINING LIMITATIONS
+
+P. FILES CHANGED
+
+============================================================
+56. HARD STOP
+============================================================
+
+SETELAH PROMPT 05 COMPLETE:
+
+STOP.
+
+JANGAN lanjut Prompt 06.
+
+JANGAN membuat:
+
+- auto remediation
+- AI analysis
+- compliance framework
+- billing
+- notifications
+- advanced dashboard
+- unrelated AWS services
+
+Tunggu instruksi berikutnya.
+
+============================================================
+EXECUTE NOW
+============================================================
+
+CONTINUE FROM CURRENT JOBEN ENTERPRISE REPOSITORY.
+
+DO NOT REBUILD.
+
+DO NOT DUPLICATE.
+
+USE PROMPT 04/04.A OUTPUT AS SOURCE.
+
+BUILD REAL SECURITY ANALYSIS + FINDINGS CORE.
+
+NODE.JS 24.
+TYPESCRIPT.
+POSTGRESQL.
+PRISMA.
+
+FULL POWER.
+REAL WORK.
+COMPLETED.
+RESPONSIVE.
+SECURE.
+CREDIT-EFFICIENT.
+
+EXECUTE MASTER PROMPT 05 NOW.
