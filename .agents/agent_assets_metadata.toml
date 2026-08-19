@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "etKLGAzSIyl3bjUGZ0vlb"
+uri = "file://DOC/ROADMAP-GAP-TASK-LIST.md"
+type = "text"
+title = "JOBEN Roadmap Gap Task List"
+description = "Detailed Indonesian task list of remaining real, end-to-end work, dependencies, gates, acceptance criteria, and verification evidence based on the attached roadmap and current repository state."
+logical_id = "be119982-8903-443a-b184-2030e3e64d09"
+content_hash = "sha256:3330af6009eaeeab717b67e7e069576562e1b1a30ec205cc220c73faeff5164c"
+size = 27502
+mtime_ms = 1787146960515
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:a21fcaf1-ba60-4d3d-bc40-d71c17455f7f/be119982-8903-443a-b184-2030e3e64d09/3465d381-a115-4b0a-a3f0-b82d302cb05d"
+storage_version_token = "1787146982236355"
+content_type = "text/markdown"

@@ -1,0 +1,515 @@
+Sudah saya identifikasi **roadmap-nya secara mendalam**, bos. Dan setelah melihat roadmap ini, saya akan **mengubah cara kita menyusun 10 master prompt**.
+
+Roadmap ini ternyata jauh lebih matang daripada sekadar daftar fitur. Ia sudah merupakan **engineering execution contract** untuk JOBEN. Sumbernya secara eksplisit menyebut PRD sebagai source of truth, roadmap v3.0, dan repository saat ini belum boleh mengklaim capability `live_verified`. 
+
+## 1. Struktur sebenarnya dari roadmap
+
+Roadmap mempunyai dua lapisan:
+
+### A. Product Phase
+
+```text
+P0  Foundation & Readiness
+ ↓
+P1  AWS Evidence Vertical Slice
+ ↓
+P1B Provider Kedua + Operational Beta
+ ↓
+P2  Trust / Auditor / Public Surface
+ ↓
+P3  Global Expansion
+ ↓
+P4  ISO 27001
+ ↓
+P5  GDPR / CCPA
+ ↓
+P6  AI Questionnaire
+ ↓
+P7  PCI SAQ Assistant
+ ↓
+P8  White-label + Auditor Marketplace
+ ↓
+P9  Hardening + GA
+```
+
+Ini bukan urutan kosmetik. P0–P1B adalah **jalur MVP live**, sedangkan P2–P8 adalah ekspansi setelah vertical slice terbukti. P9 adalah GA dan secara eksplisit tidak boleh disamakan dengan MVP beta. 
+
+---
+
+# 2. Yang paling penting: dependency DAG
+
+Ini bagian yang menurut saya harus kita jadikan **tulang punggung semua prompt**.
+
+Roadmap mendefinisikan:
+
+### S0 — Foundation Truth
+
+`M-01 + M-15`
+
+Harus membuktikan:
+
+* multi-organization;
+* server-side authorization;
+* audit;
+* migration;
+* secret redaction;
+* backup/restore smoke;
+* CI;
+* hosting verification.
+
+### S1 — Evidence Vertical Slice
+
+`M-02 + M-03 + M-04 + M-05`
+
+Harus membuktikan:
+
+* AWS cross-account verification;
+* minimal satu check nyata;
+* queue/lock/retry;
+* immutable evidence;
+* hash re-verification;
+* permission denial;
+* schema drift.
+
+### S2 — Decision System
+
+`M-06 + M-07`
+
+Harus membuktikan:
+
+* rebuild projection identik;
+* freshness/coverage;
+* error tidak menjadi pass;
+* remediation;
+* rescan;
+* close/reopen;
+* tenant/security regression.
+
+### S3 — Customer Operating Surface
+
+`M-08 + M-09 + M-10`
+
+Harus membuktikan:
+
+* UI/API parity;
+* empty/error/degraded state;
+* deterministic report;
+* signed access;
+* dedupe/delivery latency;
+* audit.
+
+### S4 — Governance Surface
+
+`M-11 + M-12`
+
+Harus membuktikan:
+
+* human approval;
+* official-source provenance;
+* scoped/time-bound auditor access;
+* stale/demo exclusion;
+* publish/revoke.
+
+### S5 — Commercial + Assistant
+
+`M-13 + M-14`
+
+Harus membuktikan:
+
+* webhook inbox/reconciliation;
+* entitlement deny;
+* citation/refusal golden set;
+* cost ceiling;
+* provider fallback safety.
+
+### S6 — Operational Readiness
+
+`M-15`
+
+Harus membuktikan:
+
+* incident exercise;
+* restore drill;
+* queue controls;
+* SLO telemetry;
+* capability diff;
+* on-call/runbooks. 
+
+**Ini sangat penting:** roadmap mengatakan dependency DAG ini **bukan daftar fitur yang boleh dilewati**. Setiap slice harus selesai end-to-end sebelum slice berikutnya dapat `live_verified`. 
+
+---
+
+# 3. Ada perbedaan penting antara "Phase" dan "Master Prompt"
+
+Ini yang saya lihat setelah membaca roadmap.
+
+**Jangan membuat:**
+
+> Prompt 1 = Phase 0
+> Prompt 2 = Phase 1
+> Prompt 3 = Phase 2
+> dst.
+
+Karena Phase terlalu besar.
+
+Sebaliknya:
+
+### 10 Master Prompt = execution packages
+
+Satu master prompt bisa mengerjakan beberapa work package **yang memang berada pada dependency yang sama**, tetapi **tidak boleh melompati gate**.
+
+Roadmap sudah menyediakan work package:
+
+```text
+WP-01 Foundation
+WP-02 Tenant/Auth/Audit
+WP-03 AWS credential/contract
+WP-04 Queue/scan engine
+WP-05 Evidence integrity
+WP-06 First AWS check
+WP-07 Remaining AWS checks
+WP-08 Controls/remediation/dashboard
+WP-09 GitHub App
+WP-10 Report/notification/ops
+WP-11 Billing sandbox
+WP-12 Trust/auditor
+WP-13 Market pack
+WP-14 Global provider/routing
+WP-15 ISO
+WP-16 ISO provider expansion
+WP-17 Privacy
+WP-18 AI Gateway
+WP-19 PCI
+WP-20 White-label
+WP-21 Auditor marketplace
+WP-22 Hardening/GA
+```
+
+
+
+Jadi nanti kita bisa membuat prompt yang **efisien tetapi tetap mengikuti DAG**.
+
+---
+
+# 4. Ada prinsip yang sangat saya suka dari roadmap ini
+
+Roadmap **melarang fake progress**.
+
+Secara eksplisit:
+
+> tidak boleh ada `pass`, `met`, `score`, `verified`, `paid`, atau `published` yang berasal dari frontend, seed, fixture, AI, default value, atau optimistic response. 
+
+Dan:
+
+> provider error, permission error, timeout, schema drift, stale, partial, dan missing evidence **tidak boleh menjadi pass**. 
+
+Ini menurut saya justru bisa menjadi **competitive advantage saat judging**.
+
+Karena kita dapat mengatakan:
+
+> **JOBEN tidak mengarang compliance.**
+
+---
+
+# 5. Roadmap juga sudah mengantisipasi masalah demo
+
+Ada tiga namespace yang wajib diuji:
+
+```text
+LIVE CUSTOMER
+      +
+PROVIDER SANDBOX
+      +
+ISOLATED DEMO
+```
+
+Data demo **tidak boleh digunakan untuk membuktikan capability live**. 
+
+Ini sangat bagus.
+
+Jadi nanti ketika membuat demo hackathon, kita bisa punya:
+
+### Demo mode
+
+untuk juri melihat produk cepat.
+
+Tetapi labelnya harus jelas.
+
+Dan:
+
+### Live verified
+
+harus berasal dari provider/sandbox yang benar-benar dieksekusi.
+
+---
+
+# 6. Roadmap menentukan MVP dengan sangat jelas
+
+Ini bagian yang membuat saya semakin yakin JOBEN layak dibawa ke lomba.
+
+**MVP sebenarnya bukan seluruh PRD.**
+
+MVP adalah:
+
+```text
+P0
+ ↓
+P1
+ ↓
+P1B
+```
+
+Yaitu:
+
+### P0
+
+Foundation.
+
+### P1
+
+AWS evidence vertical slice.
+
+### P1B
+
+Provider kedua + report + notification + operations + billing sandbox.
+
+Roadmap bahkan menyatakan **P0 sampai P1B adalah jalur MVP live**. 
+
+Jadi kita **tidak perlu membangun ISO, GDPR, PCI, marketplace, white-label, dan seluruh AI sebelum punya MVP.**
+
+---
+
+# 7. Ini sangat cocok dengan strategi hemat kredit kita
+
+Saya sekarang semakin tidak ingin kita memberikan satu prompt:
+
+> "Build JOBEN Enterprise according to PRD."
+
+Itu akan membuat agent:
+
+* membaca ribuan requirement;
+* membuat banyak halaman;
+* membuat banyak stub;
+* menghabiskan kredit;
+* dan berisiko menghasilkan sistem luas tapi dangkal.
+
+Sebaliknya:
+
+```text
+PROMPT 01
+Foundation
+       ↓
+VERIFY
+       ↓
+PROMPT 02
+Tenant/Auth/Audit
+       ↓
+VERIFY
+       ↓
+PROMPT 03
+AWS Contract
+       ↓
+VERIFY
+       ↓
+PROMPT 04
+Queue + Scan
+       ↓
+VERIFY
+       ↓
+PROMPT 05
+Evidence
+       ↓
+VERIFY
+       ↓
+PROMPT 06
+First real AWS check
+       ↓
+VERIFY GATE B
+       ↓
+...
+```
+
+Ini jauh lebih aman.
+
+---
+
+# 8. UI juga tidak boleh dibangun terlalu awal
+
+Ini penting karena pengalaman kita dengan CA X-RAY tadi.
+
+Roadmap secara eksplisit memprioritaskan:
+
+1. truth scan;
+2. tenant isolation;
+3. credential security;
+4. scan engine;
+5. evidence integrity;
+6. aggregation/scoring;
+7. empty/error/degraded UX;
+8. baru report/governance;
+9. kemudian billing/AI/growth. 
+
+Jadi **kita tidak akan mengulangi kesalahan membuat dashboard cantik sebelum core benar.**
+
+UI akan dibangun **bersamaan dengan vertical slice yang sudah memiliki data nyata**, bukan sebagai mockup yang kemudian harus disambungkan ulang.
+
+---
+
+# 9. Definition of Ready/Done juga harus masuk ke setiap prompt
+
+Ini bukan opsional.
+
+Sebelum capability coding:
+
+* requirement;
+* non-goal;
+* actor;
+* role;
+* tenant scope;
+* provider contract;
+* state machine;
+* error taxonomy;
+* freshness/coverage;
+* idempotency;
+* rollback;
+* evidence schema;
+* retention;
+* audit;
+* test;
+* owner;
+* SLO;
+* cost ceiling;
+* runbook
+
+harus sudah ditentukan. 
+
+Dan sebelum `live_verified`:
+
+* unit;
+* integration;
+* contract;
+* E2E;
+* security;
+* regression;
+* accessibility;
+* localization;
+* performance;
+
+yang relevan harus lulus. 
+
+---
+
+# 10. Ada satu hal yang akan saya pertahankan dari roadmap tanpa kompromi
+
+Setiap master prompt nanti harus memerintahkan agent:
+
+> **INSPECT FIRST → IMPLEMENT ONLY MISSING SCOPE → TEST → VERIFY → DOCUMENT → STOP.**
+
+Bukan:
+
+> "build everything."
+
+Karena roadmap sendiri mengharuskan setiap task mempunyai:
+
+* source of truth;
+* state machine;
+* schema;
+* failure behavior;
+* idempotency;
+* concurrency;
+* retention;
+* rollback/recovery;
+* test evidence;
+* metric;
+* SLO;
+* cost ceiling;
+* runbook;
+* CapabilityRecord;
+* Definition of Ready/Done. 
+
+---
+
+# 11. Saya akan mengubah 10 master prompt menjadi seperti ini
+
+**Belum saya tulis prompt-nya**, hanya struktur strateginya:
+
+| Master | Target                                                                     |
+| ------ | -------------------------------------------------------------------------- |
+| **01** | Repository baseline + P0 product truth + engineering foundation            |
+| **02** | Tenant/Auth/RBAC/Audit + PostgreSQL + recovery foundation                  |
+| **03** | AWS contract + credential safety + provider adapter                        |
+| **04** | Queue + ScanRun + worker + retry/lock/idempotency                          |
+| **05** | Evidence integrity + first real AWS check                                  |
+| **06** | Gate B + remaining AWS checks + Decision System                            |
+| **07** | Customer dashboard + remediation + report + notification                   |
+| **08** | GitHub provider + operational beta + billing sandbox                       |
+| **09** | Trust/auditor + global-ready architecture + AI foundation sesuai readiness |
+| **10** | Hackathon polish + production hardening + demo + submission evidence       |
+
+Tetapi **urutan final belum saya kunci**, karena saya ingin menyesuaikannya lagi dengan **kredit Emergent dan kemampuan project setelah setiap gate**.
+
+---
+
+# 12. Yang paling penting untuk lomba
+
+Saya sekarang melihat strategi terbaik bukan:
+
+> **"Bangun seluruh JOBEN."**
+
+Melainkan:
+
+> ### **"Bangun JOBEN sampai S3/S5 dengan satu vertical slice yang benar-benar luar biasa, lalu tunjukkan roadmap enterprise sebagai scalability story."**
+
+Karena juri bisa melihat:
+
+```text
+REAL AWS
+   ↓
+REAL SCAN
+   ↓
+REAL EVIDENCE
+   ↓
+REAL CONTROL
+   ↓
+REAL FINDING
+   ↓
+REAL REMEDIATION
+   ↓
+REAL RESCAN
+   ↓
+REAL REPORT
+   ↓
+REAL AI EXPLANATION
+```
+
+Dan di belakangnya mereka melihat architecture yang memang siap berkembang ke:
+
+```text
+ISO
+GDPR
+PCI
+AI
+Global
+White-label
+Auditor marketplace
+GA
+```
+
+Itu **lebih meyakinkan daripada 20 modul yang semuanya setengah jadi.**
+
+---
+
+## Kesimpulan saya
+
+**Roadmap ini sudah sangat bagus. Saya tidak akan menggantinya.**
+
+Yang akan kita lakukan adalah **menerjemahkan roadmap ini menjadi 10 execution master prompts tanpa merusak dependency DAG-nya.**
+
+Dan saya menemukan aturan penting yang akan menjadi **kontrak di setiap prompt**:
+
+> **Tidak ada feature jumping, tidak ada fake/live claim, tidak ada rebuild, tidak ada mock yang menyamar sebagai capability nyata, dan setiap master prompt harus berhenti setelah scope + gate-nya selesai.**
+
+Roadmap juga menetapkan bahwa `CapabilityRecord`, decision/RFC log, provider matrix, data classification, threat model, test evidence, runbook, dan customer limitation harus diperbarui setiap phase. 
+
+**Jadi sekarang saya belum membuat Prompt 01.**
+Kita sudah punya blueprint yang cukup presisi. Langkah berikutnya tinggal kita eksekusi **Master Prompt 01**, dan saya akan membuatnya berdasarkan **P0 + WP-01**, bukan membuat project JOBEN dari nol secara membabi buta.
