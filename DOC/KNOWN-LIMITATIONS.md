@@ -14,13 +14,18 @@ success state.
 3. **Identity provider:** the development identity adapter is explicit and
    disabled in production. Clerk/provider connection and live authentication
    acceptance proof remain pending.
+4. **Migration recovery:** all 13 forward migrations applied successfully in
+   the Replit development database, but no down migration or isolated restore
+   target is available for a safe one-step rollback drill. No rollback success
+   is claimed.
 
 ## Scope boundaries
 
 1. No Prompt 09+ decision/control expansion, remediation, reports, billing,
    GitHub provider, governance product, or AI capability was implemented.
 2. Backup/restore is documented as an operator foundation; no production-grade
-   disaster-recovery claim is made.
+   disaster-recovery claim is made, and the isolated restore smoke remains
+   blocked pending a separate restore target.
 3. Logging is structured and redacted locally; no centralized remote sink is
    claimed.
 4. Dashboard values are server-derived. With no authenticated organization or
