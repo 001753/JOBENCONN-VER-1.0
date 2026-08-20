@@ -1,0 +1,79 @@
+PRASYARAT: TASK-01 (Gate A) sudah dieksekusi dan proof-nya ada di
+/DOC/proof/GATE-A-PROOF.md. Jika belum, STOP dan kerjakan TASK-01 dulu.
+
+KONTEKS WAJIB DIBACA DULU:
+1. Inspeksi module auth/session/CSRF/RBAC/tenant-boundary yang sudah ada di
+   repo. Sesuai PRD, provider auth adalah Clerk (multi-tenant organization,
+   MFA wajib untuk role OWNER/ADMIN). JANGAN membangun sistem auth baru dari
+   nol jika module ini sudah ada sebagai code/test boundary — task ini HANYA
+   tentang menyambungkannya ke provider produksi nyata dan membuktikannya,
+   bukan menulis ulang.
+2. Patuhi aturan mengikat yang sama seperti TASK-01 (lihat prompt sebelumnya):
+   tidak ada status sukses dari UI/seed/default; error/denial/timeout tidak
+   pernah menjadi pass; LIVE vs SANDBOX vs DEMO harus selalu dibedakan.
+3. Credential Clerk (publishable key, secret key) HARUS diambil dari Replit
+   Secrets, TIDAK BOLEH pernah ditulis ke source code, file config yang
+   ter-commit, atau log.
+
+TUJUAN TASK INI (satu-satunya scope):
+Membuktikan identity provider Clerk berjalan produksi nyata dan seluruh
+lifecycle actor auth benar-benar bekerja end-to-end pada database PostgreSQL
+sungguhan — bukan hanya code path yang lulus unit test dengan mock.
+
+PEKERJAAN, PERSIS URUTAN INI:
+1. Setup project Clerk (gunakan Replit Secrets untuk menyimpan
+   CLERK_PUBLISHABLE_KEY dan CLERK_SECRET_KEY). Konfirmasi environment
+   production Clerk terpisah dari environment development/test Clerk.
+2. Hubungkan Clerk ke aplikasi tanpa menyimpan credential di source atau
+   database. Pastikan dev/mock auth adapter otomatis nonaktif ketika
+   NODE_ENV=production (buktikan dengan mencoba start di production tanpa
+   Clerk key — aplikasi harus gagal start, sama seperti aturan TASK-01).
+3. Implementasikan/verifikasi lifecycle actor berikut dan UJI SATU PER SATU
+   dengan Clerk sungguhan (bukan mock), rekam hasilnya:
+   a. Sign-in sukses → session dibuat, tercatat di audit log dengan actor,
+      tenant, timestamp.
+   b. Callback OAuth/email identity dari Clerk → user internal dipetakan
+      HANYA melalui aturan immutable yang diaudit (external ID → internal
+      user ID tidak boleh berubah diam-diam).
+   c. Logout → session di-revoke, cookie dihapus, request selanjutnya dengan
+      cookie lama ditolak.
+   d. Expired session → request ditolak dengan kode error yang jelas.
+   e. Revoked session (revoke manual dari admin) → request berikutnya ditolak
+      SEBELUM expiry alami.
+   f. Disabled/removed membership → user tidak bisa lagi mengakses tenant
+      tersebut meski session masih valid.
+   g. Account recovery flow Clerk (reset password/email) diuji end-to-end.
+4. Uji invitation lifecycle pada database PostgreSQL nyata (bukan in-memory):
+   invitation accept, duplicate invitation attempt (harus ditolak), invitation
+   expiry, invitation revoke, replay attack pada invitation token yang sama
+   (harus ditolak), dan ownership transfer antar admin.
+5. Uji cross-tenant access denial di DUA layer: HTTP boundary (request dengan
+   token tenant A mencoba akses resource tenant B → harus 403/404, bukan
+   bocor data) DAN service/repository boundary (query di level kode juga
+   harus tenant-scoped, bukan hanya disaring di controller).
+6. Uji CSRF protection, cookie flags (httpOnly, secure, sameSite), session
+   rotation setelah privilege change, dan pastikan dev auth benar-benar
+   tidak bisa diaktifkan di production (ulangi test poin 2 sebagai regression).
+
+BUKTI YANG WAJIB DISIMPAN (`/DOC/proof/TASK-02-AUTH-PROOF.md`):
+- Auth acceptance matrix: setiap skenario di atas + hasil PASS/FAIL dengan
+  timestamp dan correlation ID.
+- Cuplikan provider log yang SUDAH DIREDUKSI (hilangkan token/secret asli).
+- Hasil integration/E2E/security test run (bukan hanya klaim "sudah lulus").
+- Daftar audit event yang tercatat untuk setiap actor lifecycle di atas.
+- Failure taxonomy: daftar semua kode error yang mungkin muncul dan artinya.
+- Runbook unlink/revoke/recovery yang SUDAH DICOBA sekali secara nyata.
+
+DEFINITION OF DONE:
+- Semua skenario lifecycle di poin 3–6 PASS dengan bukti tersimpan, atau
+  secara eksplisit ditandai FAIL/BLOCKED dengan alasan — jangan pernah
+  ditandai PASS jika belum benar-benar diuji.
+- Tidak ada credential/secret yang bocor di kode, log, atau dokumen proof.
+- Registry capability untuk "Identity/Auth" hanya naik ke LIVE_VERIFIED jika
+  seluruh matrix di atas PASS; jika sebagian gagal, tetap
+  VERIFICATION_REQUIRED dan didokumentasikan sebagai limitation eksplisit.
+
+ATURAN BERHENTI:
+Setelah matrix ini selesai dan didokumentasikan, STOP. Jangan mulai TASK-03
+atau TASK-04 dalam sesi yang sama. Laporkan ringkasan: skenario mana yang
+PASS dengan bukti, mana yang masih gagal/belum bisa diuji, dan kenapa.

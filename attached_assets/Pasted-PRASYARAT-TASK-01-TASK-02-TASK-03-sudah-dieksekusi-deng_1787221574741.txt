@@ -1,0 +1,102 @@
+PRASYARAT: TASK-01, TASK-02, TASK-03 sudah dieksekusi dengan proof tersimpan
+di /DOC/proof/. Jika belum, STOP dan kerjakan itu dulu — TASK-04 secara
+eksplisit bergantung pada ketiganya.
+
+KONTEKS WAJIB DIBACA DULU:
+1. Inspeksi control `AWS-IAM-ROOT-MFA` yang sudah ada: alur dari pemanggilan
+   `iam:GetAccountSummary` sampai ke dashboard sudah TEST_VERIFIED secara
+   lokal dengan fixture. JANGAN menulis ulang logic evaluator/rule ini.
+   Scope task ini HANYA membuktikan alur yang SAMA berjalan terhadap akun
+   AWS nyata (bukan fixture) dan memenuhi enam promotion condition Gate B.
+2. Kontrak koneksi AWS sesuai PRD §7.4: metode WAJIB cross-account IAM role
+   dengan External ID unik per integration — BUKAN access key statis.
+   Trust policy membatasi JOBEN_AWS_ACCOUNT_ID dan sts:ExternalId. JOBEN
+   melakukan STS AssumeRole; credential hasil AssumeRole HANYA hidup di
+   memory selama scan, tidak pernah disimpan permanen.
+3. Policy IAM yang dipasang di akun customer/sandbox HANYA boleh berisi
+   action yang benar-benar dipakai oleh check yang sedang dibuktikan di sini
+   (minimal: iam:GetAccountSummary, dan action pendukung STS/identity).
+   JANGAN memasang managed policy `ReadOnlyAccess` generik.
+
+TUJUAN TASK INI (satu-satunya scope):
+Menutup Gate B — Evidence vertical slice — untuk SATU control
+(AWS-IAM-ROOT-MFA) dengan bukti AWS nyata end-to-end: STS identity proof,
+observation nyata, evidence live (tersimpan via pipeline TASK-03), controlled
+account comparison, dan permission-negative run — enam kondisi promosi sesuai
+DOC/GATE-B-PROOF.md.
+
+PEKERJAAN, PERSIS URUTAN INI:
+1. Siapkan SATU akun AWS disposable/controlled (akun sandbox/test terpisah
+   dari akun production apa pun) khusus untuk pembuktian ini.
+2. Deploy CloudFormation role read-only (`/public/aws/joben-readonly-role.yaml`
+   jika sudah ada di repo; jika belum ada, buat sesuai kontrak §7.4: trust
+   policy membatasi JOBEN_AWS_ACCOUNT_ID + External ID unik, dan policy
+   custom HANYA berisi action minimum untuk check ini).
+3. Hubungkan integration ini ke aplikasi dengan Role ARN + External ID
+   (bukan access key). Simpan `Integration.credentialsRef` sebagai reference
+   terenkripsi, bukan credential mentah.
+4. Jalankan STS AssumeRole SUNGGUHAN dari aplikasi ke akun sandbox tersebut:
+   a. Buktikan STS identity verification berhasil dan account ID yang
+      didapat cocok dengan account ID yang diharapkan.
+   b. Uji account mismatch: coba assume role dengan External ID salah atau
+      ke account ID yang tidak sesuai — HARUS ditolak oleh AWS (rekam error
+      asli AWS, bukan validasi aplikasi semata).
+   c. Buktikan credential STS hasil AssumeRole tidak pernah ditulis ke
+      database/log/disk — hanya hidup di memory selama durasi scan (audit
+      kode + audit log runtime untuk memastikan tidak bocor).
+5. Jalankan `iam:GetAccountSummary` sungguhan pada akun sandbox tersebut
+   melalui pipeline evaluator yang sudah ada. Simpan:
+   - Observation mentah dari AWS (redacted secukupnya untuk dokumen).
+   - Evidence hash (via pipeline TASK-03 — pastikan evidence ini benar-benar
+     tersimpan di object storage WORM, bukan lagi di adapter lokal).
+   - Freshness timestamp, coverage (resource apa saja yang tercakup), scan
+     ID, checkId + checkVersion, evaluator version, dan provenance lengkap
+     (endpoint, permission yang dipakai, source revision dokumentasi AWS).
+6. Jalankan skenario permission-negative: cabut permission
+   `iam:GetAccountSummary` dari role sandbox tersebut (atau attach deny
+   policy), jalankan ulang scan, dan BUKTIKAN hasilnya adalah error/
+   INSUFFICIENT_EVIDENCE — BUKAN PASS dan BUKAN FAIL dengan asumsi kondisi
+   buruk. Ini adalah test paling kritis: jika hasilnya secara diam-diam
+   menjadi PASS atau default value, task ini GAGAL dan harus diperbaiki
+   sebelum lanjut.
+7. Kembalikan permission, jalankan tenant-isolation negative test: coba akses
+   evidence/finding integration ini dari tenant/organization lain di
+   aplikasi — HARUS ditolak di HTTP boundary dan service boundary (regression
+   terhadap hasil TASK-02).
+8. Lakukan controlled-account manual comparison: bandingkan hasil evaluator
+   otomatis dengan pengecekan manual langsung di AWS Console/CLI untuk akun
+   sandbox yang sama pada waktu yang berdekatan — pastikan hasilnya konsisten
+   secara logis (root MFA aktif/tidak aktif sesuai kondisi nyata akun).
+9. Re-run scan yang sama minimal dua kali tanpa perubahan kondisi akun.
+   Buktikan idempotency: hasil evaluation dan projection deterministik/identik
+   (bandingkan checkId, checkVersion, hasil pass/fail, dan struktur evidence
+   — timestamp boleh berbeda, hasil evaluasi tidak boleh berbeda).
+
+BUKTI YANG WAJIB DISIMPAN (perbarui `/DOC/proof/GATE-B-PROOF.md`, tambahkan
+section baru bertanggal, jangan menimpa histori):
+- STS identity proof + account mismatch rejection.
+- Observation asli (redacted), evidence hash, freshness, coverage, scan ID,
+  checkId/checkVersion, evaluator version, provenance.
+- Hasil permission-negative run (paling penting — harus eksplisit
+  ERROR/INSUFFICIENT_EVIDENCE, bukan PASS).
+- Hasil tenant-isolation negative test.
+- Hasil controlled-account manual comparison.
+- Hasil re-run idempotency (dua run, hasil dibandingkan berdampingan).
+
+DEFINITION OF DONE:
+- Keenam promotion condition Gate B pada DOC/GATE-B-PROOF.md terpenuhi
+  dengan bukti nyata seperti di atas.
+- HANYA setelah semua enam kondisi ini lulus, control AWS-IAM-ROOT-MFA boleh
+  naik status menjadi LIVE_VERIFIED di capability registry. Jika satu saja
+  belum lulus (misalnya permission-negative test masih menunjukkan perilaku
+  yang salah), status TETAP VERIFICATION_REQUIRED dan didokumentasikan
+  sebagai limitation eksplisit — jangan dipaksakan naik status.
+- Capability registry, known-limitations, dan customer-facing limitation page
+  diperbarui agar konsisten dengan hasil nyata ini.
+
+ATURAN BERHENTI:
+Setelah keenam kondisi Gate B ini selesai diuji dan didokumentasikan, STOP.
+Ini menutup jalur MVP S0/S1 (TASK-01 s/d TASK-04). Jangan mulai TASK-05 atau
+task lain di luar scope ini dalam sesi yang sama. Laporkan ringkasan akhir:
+apakah Gate B PASSED atau masih NOT PASSED, kondisi mana yang lulus dengan
+bukti, dan kondisi mana yang masih tertahan beserta alasannya.

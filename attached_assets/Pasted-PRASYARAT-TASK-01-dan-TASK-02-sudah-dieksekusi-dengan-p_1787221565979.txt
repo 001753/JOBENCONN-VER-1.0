@@ -1,0 +1,95 @@
+PRASYARAT: TASK-01 dan TASK-02 sudah dieksekusi dengan proof tersimpan di
+/DOC/proof/. Jika belum, STOP dan kerjakan itu dulu.
+
+KONTEKS WAJIB DIBACA DULU:
+1. Inspeksi pipeline evidence yang sudah ada: redaction → schema validation
+   → canonical JSON (JCS-1) → SHA-256 → metadata PostgreSQL → integrity
+   verification. Pipeline logic ini SUDAH ADA dan sudah TEST_VERIFIED secara
+   lokal — JANGAN menulis ulang pipeline ini. Scope task ini HANYA mengganti
+   backend storage-nya dari in-memory/versioned adapter lokal menjadi object
+   storage nyata dengan WORM (Write Once Read Many) yang benar-benar
+   dikonfigurasi, dan membuktikannya.
+2. Definition of truth dari PRD: "Evidence" adalah payload ter-redact yang
+   disimpan IMMUTABLE, dengan hash dan metadata sumber. Evidence final tidak
+   boleh diubah atau dihapus sebelum aturan retention/legal-hold terpenuhi.
+3. Patuhi aturan mengikat yang sama: tidak ada status sukses dari mock;
+   error/corruption/denial tidak pernah menjadi "committed"; evidence LIVE,
+   SANDBOX, dan DEMO harus terpisah namespace/bucket, tidak boleh tercampur.
+
+TUJUAN TASK INI (satu-satunya scope):
+Membuktikan bahwa evidence yang sudah melalui pipeline (redaction → schema →
+canonical → hash) benar-benar tersimpan di object storage nyata dengan
+encryption, versioning, retention lock, dan Object Lock (governance atau
+compliance mode sesuai kontrak) — bukan lagi di adapter in-memory.
+
+PEKERJAAN, PERSIS URUTAN INI:
+1. Gunakan storage abstraction/interface yang SUDAH ADA di kode (adapter
+   pattern). JANGAN membuat bypass khusus untuk production yang melewati
+   abstraction ini — itu akan membuat pipeline redaction/validasi tidak
+   konsisten antara test dan production.
+2. Provision bucket/container object storage nyata (via Replit Secrets untuk
+   credential). Konfigurasikan:
+   - Server-side encryption.
+   - Bucket versioning aktif.
+   - Default retention period sesuai kontrak PRD.
+   - Object Lock governance/compliance mode (WORM) aktif.
+   Simpan bukti konfigurasi ini (screenshot/CLI output policy JSON, bukan
+   klaim naratif).
+3. Uji SATU PER SATU dan rekam hasilnya:
+   a. Write evidence baru → object tersimpan, version ID tercatat.
+   b. Read-back → hash yang dibaca ulang SAMA dengan hash yang dihitung saat
+      write (independent integrity check, hitung ulang hash dari bytes yang
+      dibaca, jangan hanya percaya field di database).
+   c. Overwrite rejection → coba tulis ulang ke key/version yang sama, HARUS
+      ditolak oleh storage (buktikan dengan error response asli dari
+      provider, bukan validasi aplikasi semata).
+   d. Retention expiry → simulasikan/uji retention period pendek di
+      environment test, buktikan objek tidak bisa dihapus sebelum retention
+      berakhir.
+   e. Legal hold → set legal hold pada satu object, coba hapus, harus
+      ditolak walau retention sudah lewat; lepas legal hold, baru bisa
+      mengikuti aturan retention normal.
+   f. Supersession → evidence lama yang digantikan evidence baru tetap ada
+      (immutable), hanya status "superseded" yang berubah di metadata,
+      bukan objek fisiknya yang hilang.
+   g. Deletion eligibility → objek yang sudah lewat retention dan tidak ada
+      legal hold baru bisa masuk proses hapus, dan itu pun harus melalui
+      workflow eksplisit, bukan hapus otomatis diam-diam.
+4. Uji negative case dan rekam hasilnya (JANGAN biarkan ini jadi "pass"):
+   - Objek hilang (misal key salah/dihapus manual di provider) → sistem
+     mendeteksi dan menandai evidence sebagai bermasalah, bukan diam-diam
+     menganggap evidence valid.
+   - Object corruption (ubah manual sedikit byte jika memungkinkan di test
+     env, atau simulasikan mismatch hash) → integrity check HARUS gagal
+     dan evidence ditandai quarantined, bukan committed.
+   - Provider denial (permission dicabut sementara) → error tercatat jelas,
+     bukan retry diam-diam yang akhirnya menganggap sukses.
+   - Timeout provider → retry sesuai kontrak (backoff), dan jika tetap gagal,
+     evidence TIDAK ditandai committed.
+   - Storage schema/API drift (versi API storage berubah) → didokumentasikan
+     sebagai risiko yang dipantau, bukan diasumsikan tidak akan terjadi.
+
+BUKTI YANG WAJIB DISIMPAN (`/DOC/proof/TASK-03-EVIDENCE-STORAGE-PROOF.md`):
+- Bucket policy class (governance/compliance), region, encryption setting.
+- Version ID yang DIREDUKSI untuk setiap test case di atas.
+- Hasil retention test dan independent hash re-verification (tunjukkan hash
+  yang dihitung ulang, bukan hanya field database).
+- Hasil semua negative test dengan error asli dari provider.
+- Recovery drill: simulasikan satu skenario kegagalan dan buktikan proses
+  recovery/quarantine berjalan sesuai desain, sudah DICOBA bukan hanya
+  ditulis.
+
+DEFINITION OF DONE:
+- Live storage proof record lengkap sesuai daftar bukti di atas.
+- Registry TETAP VERIFICATION_REQUIRED untuk sub-capability manapun yang
+  belum punya bukti lengkap (misalnya jika Object Lock compliance mode belum
+  bisa diuji penuh di environment yang tersedia, katakan itu secara eksplisit
+  — jangan menandainya PASS).
+- Evidence Gate (bagian dari Gate B) tidak dinyatakan lulus di sini; task ini
+  hanya menutup precondition storage-nya. Kelulusan Gate B ada di TASK-04.
+
+ATURAN BERHENTI:
+Setelah semua bukti di atas lengkap dan didokumentasikan, STOP. Jangan
+mengerjakan TASK-04 dalam sesi yang sama. Laporkan ringkasan: test case mana
+yang PASS dengan bukti, mana yang FAIL/BLOCKED, dan implikasinya terhadap
+status registry.
