@@ -1,0 +1,90 @@
+KONTEKS WAJIB DIBACA DULU (jangan tulis kode sebelum ini selesai):
+1. Baca ulang seluruh repo yang sudah ada: struktur folder, migration,
+   auth/session module, audit module, CI config, health endpoint yang sudah
+   ada. JANGAN membangun ulang apa pun yang sudah bekerja. Laporkan dulu
+   inventory singkat: apa yang sudah ada, apa yang belum ada, sebelum menulis
+   satu baris kode baru.
+2. Baca aturan mengikat berikut dan patuhi tanpa pengecualian:
+   - Dilarang mengubah status PLANNED / VERIFICATION_REQUIRED / DEGRADED /
+     NOT_EVALUATED menjadi "sukses" hanya karena UI render, seed data,
+     fixture, mock, atau default value.
+   - Provider error, permission denial, timeout, schema drift, stale data,
+     dan missing evidence TIDAK BOLEH diproyeksikan sebagai pass/verified.
+   - HTTP 200 pada sebuah route BUKAN bukti capability live. Bukti hanya sah
+     jika berasal dari eksekusi nyata terhadap provider/environment target
+     dengan output yang tersimpan (correlation ID, timestamp, versi code).
+   - Data harus selalu dibedakan tiga label: LIVE CUSTOMER, PROVIDER SANDBOX,
+     ISOLATED DEMO. Jangan pernah memakai demo data sebagai bukti live.
+
+TUJUAN TASK INI (satu-satunya scope, jangan mengerjakan hal lain):
+Menutup Gate A — Foundation — sesuai PRD §24.3: auth/session, tenant
+authorization, schema/migration, secret handling, logging redaction, CI,
+backup, restore, dan hosting verification harus lulus dengan bukti nyata
+sebelum sistem boleh menerima data customer apa pun.
+
+PEKERJAAN YANG HARUS DILAKUKAN, PERSIS URUTAN INI:
+1. Jalankan clean install dependency dari nol (hapus node_modules/lockfile
+   cache lama jika perlu, install ulang) pada environment Replit target.
+   Catat hasil exit code dan waktu eksekusi.
+2. Jalankan typecheck penuh (tsc --noEmit atau setara). Catat jumlah error.
+   Jika ada error, PERBAIKI dulu — jangan lanjut dengan error yang di-suppress.
+3. Jalankan build production. Catat ukuran output dan exit code.
+4. Jalankan seluruh test suite (unit + integration) yang sudah ada. Catat
+   pass/fail count apa adanya. Jangan menghapus atau men-skip test yang gagal
+   hanya supaya suite hijau.
+5. Jalankan migration deploy pada database PostgreSQL environment target.
+   SEBELUM migration: catat daftar tabel dan migration_id terakhir yang
+   tercatat di tabel migration history.
+   SESUDAH migration: catat ulang daftar tabel dan migration_id terakhir.
+   Simpan diff-nya sebagai bukti tertulis (file markdown di /DOC/proof/).
+6. Expose dan uji dua endpoint terpisah: `/health/live` (proses hidup) dan
+   `/health/ready` (dependency, termasuk koneksi database, benar-benar siap).
+   `/health/ready` HARUS mengembalikan status tidak-siap (503 atau setara)
+   jika database tidak dapat dihubungi — buktikan ini dengan mematikan
+   koneksi DB sementara (negative test) dan merekam responsnya.
+7. Buktikan bahwa boundary production config MENOLAK startup jika environment
+   variable wajib (secret, database URL, identity provider key, dsb) tidak
+   lengkap. Jalankan aplikasi dengan satu env var wajib dihapus dan buktikan
+   aplikasi gagal start dengan pesan error yang jelas — JANGAN biarkan
+   aplikasi start dengan fallback diam-diam.
+8. Untuk identity provider dan AWS STS: JANGAN mengimplementasikan penuh di
+   task ini (itu scope TASK-02 dan TASK-04). Batasi pada verifikasi bahwa
+   konfigurasi koneksi (bukan credential hardcode) dapat dibaca dari secret
+   store Replit dan aplikasi menolak start tanpa itu jika env=production.
+9. Buktikan live evidence storage dan retention boundary MINIMAL pada level
+   konfigurasi: bucket/storage target dapat diakses dengan credential dari
+   secret store, dan aplikasi menolak start di production tanpa konfigurasi
+   storage tersebut. Implementasi penuh WORM ada di TASK-03 — jangan
+   dikerjakan di sini.
+
+BUKTI YANG WAJIB DISIMPAN (buat file `/DOC/proof/GATE-A-PROOF.md` diperbarui,
+JANGAN menimpa histori lama, tambahkan section baru bertanggal):
+- Tanggal eksekusi, commit SHA, environment class (development/staging/
+  production-like di Replit).
+- Hasil clean install/typecheck/build/test dengan angka pass/fail apa adanya.
+- Migration status sebelum/sesudah + migration_id.
+- Bukti /health/live dan /health/ready termasuk hasil negative test DB down.
+- Bukti config rejection saat env var wajib hilang (screenshot log/output,
+  bukan klaim naratif).
+- Provider account identifier yang DIREDUKSI (jangan simpan credential utuh
+  di dokumen manapun).
+- Rollback/recovery procedure yang SUDAH DICOBA nyata (jalankan rollback
+  migration satu langkah mundur, buktikan berhasil, lalu migration maju lagi).
+
+DEFINITION OF DONE — TASK INI SELESAI HANYA JIKA SEMUA INI BENAR:
+- File proof Gate A menyatakan PASS HANYA untuk requirement yang benar-benar
+  dieksekusi dengan bukti tersimpan; requirement yang belum bisa dieksekusi
+  (misal identity provider live penuh, AWS STS penuh, WORM penuh) TETAP
+  ditandai VERIFICATION_REQUIRED, bukan PASS — itu scope task lain.
+- Tidak ada satupun klaim LIVE_VERIFIED di capability registry tanpa bukti
+  yang tersimpan sesuai poin di atas.
+- CapabilityRecord / known-limitations / runbook / customer-facing limitation
+  page diperbarui agar konsisten dengan status nyata ini.
+- Rollback/recovery migration terbukti berhasil dijalankan, bukan hanya
+  ditulis sebagai prosedur.
+
+ATURAN BERHENTI:
+Setelah semua poin di atas selesai dan didokumentasikan, STOP. Jangan
+mengerjakan TASK-02, TASK-03, atau TASK-04 dalam sesi yang sama. Jangan
+menambah fitur di luar scope Gate A. Laporkan ringkasan akhir: apa yang PASS
+dengan bukti, apa yang masih VERIFICATION_REQUIRED, dan kenapa.
